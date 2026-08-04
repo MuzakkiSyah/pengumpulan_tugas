@@ -146,56 +146,10 @@ foreach ($all_assignments as $a) { if ($a['sub_id']) $total_kumpul++; }
     <style>
         .stats-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; margin-bottom:2rem; }
         @media(max-width:600px) { .stats-grid { grid-template-columns:1fr; } }
-        .stat-card { background:var(--bg-card); border:1px solid var(--border-color); border-radius:12px; padding:1.5rem; text-align:center; }
-        .stat-num { font-size:2.2rem; font-weight:700; font-family:'Outfit',sans-serif; }
-        .stat-num.primary { background:var(--grad-primary); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-        .stat-num.success { color:var(--color-success); }
-        .stat-num.warning { color:var(--color-warning); }
-        .stat-desc { color:var(--text-muted); font-size:.82rem; margin-top:.25rem; }
-
-        /* Matkul group */
-        .matkul-group { margin-bottom:2.5rem; }
-        .matkul-header {
-            display:flex; justify-content:space-between; align-items:center;
-            padding:1rem 1.5rem;
-            background:linear-gradient(135deg,rgba(138,43,226,.14),rgba(255,0,127,.06));
-            border:1px solid rgba(138,43,226,.2);
-            border-radius:14px 14px 0 0;
-            gap:1rem; flex-wrap:wrap;
-        }
-        .matkul-title { font-size:1.05rem; font-weight:700; display:flex; align-items:center; gap:.6rem; }
-        .matkul-code { background:rgba(138,43,226,.15); color:#c084fc; border:1px solid rgba(138,43,226,.25); padding:.2rem .6rem; border-radius:6px; font-size:.8rem; font-family:'Outfit',sans-serif; font-weight:700; }
-        .matkul-progress { display:flex; align-items:center; gap:.6rem; font-size:.82rem; color:var(--text-muted); }
-        .matkul-progress-bar { width:80px; height:5px; background:rgba(255,255,255,.07); border-radius:99px; overflow:hidden; }
-        .matkul-progress-fill { height:100%; background:var(--grad-primary); border-radius:99px; }
-        .matkul-body { border:1px solid rgba(138,43,226,.15); border-top:none; border-radius:0 0 14px 14px; overflow:hidden; }
-
-        /* Tugas card dalam matkul */
-        .tugas-row { padding:1.25rem 1.5rem; border-bottom:1px solid var(--border-color); transition:background .2s; }
-        .tugas-row:last-child { border-bottom:none; }
-        .tugas-row:hover { background:rgba(255,255,255,.015); }
-        .tugas-header-row { display:flex; justify-content:space-between; align-items:flex-start; gap:.75rem; margin-bottom:.6rem; }
-        .tugas-title { font-weight:600; font-size:.98rem; }
-        .tugas-status { font-size:.75rem; font-weight:600; padding:.25rem .7rem; border-radius:99px; white-space:nowrap; }
-        .status-collected { background:rgba(16,185,129,.15); color:var(--color-success); border:1px solid rgba(16,185,129,.25); }
-        .status-pending { background:rgba(245,158,11,.15); color:var(--color-warning); border:1px solid rgba(245,158,11,.25); }
-        .status-overdue { background:rgba(239,68,68,.1); color:var(--color-error); border:1px solid rgba(239,68,68,.2); }
-        .tugas-desc { font-size:.85rem; color:var(--text-muted); margin-bottom:.75rem; line-height:1.6; }
-        .tugas-meta { display:flex; gap:1rem; flex-wrap:wrap; font-size:.8rem; color:var(--text-muted); margin-bottom:.9rem; align-items:center; }
-        .countdown { font-weight:600; }
-        .countdown.urgent { color:var(--color-error); }
-        .countdown.soon { color:var(--color-warning); }
-        .countdown.safe { color:var(--color-success); }
-
-        .uploaded-file { display:flex; align-items:center; justify-content:space-between; gap:1rem; background:rgba(16,185,129,.05); border:1px solid rgba(16,185,129,.15); border-radius:8px; padding:.75rem 1rem; margin-bottom:.75rem; flex-wrap:wrap; }
-        .upload-form { display:flex; gap:.75rem; align-items:flex-end; flex-wrap:wrap; }
-        .file-input-wrapper { flex:1; min-width:200px; }
-
-        .filter-bar { display:flex; gap:.6rem; flex-wrap:wrap; margin-bottom:1.5rem; align-items:center; }
-        .filter-label { color:var(--text-muted); font-size:.88rem; }
-        .btn-sm { padding:.4rem .85rem; font-size:.82rem; border-radius:6px; }
-        .empty-state { text-align:center; padding:4rem 2rem; }
-        .empty-icon { font-size:3.5rem; margin-bottom:1rem; }
+        .tugas-header-row { display:flex; justify-content:space-between; align-items:flex-start; gap:.75rem; margin-bottom:.6rem; flex-wrap:wrap; }
+        .tugas-title { font-weight:600; font-size:.98rem; color:var(--text-main); }
+        .tugas-desc { font-size:.88rem; color:var(--text-muted); margin-bottom:.75rem; line-height:1.6; }
+        .tugas-meta { display:flex; gap:1rem; flex-wrap:wrap; font-size:.82rem; color:var(--text-muted); margin-bottom:.9rem; align-items:center; }
     </style>
 </head>
 <body>
@@ -274,11 +228,11 @@ foreach ($all_assignments as $a) { if ($a['sub_id']) $total_kumpul++; }
         ?>
         <div class="matkul-group">
             <!-- Header Folder Matkul -->
-            <div class="matkul-header">
+            <div class="matkul-header matkul-header-gold">
                 <div class="matkul-title">
-                    <span class="matkul-code"><?= htmlspecialchars($group['info']['kode_matkul']) ?></span>
+                    <span class="matkul-code-dark"><?= htmlspecialchars($group['info']['kode_matkul']) ?></span>
                     📁 <?= htmlspecialchars($group['info']['nama_matkul']) ?>
-                    <span style="font-size:.8rem;color:var(--text-muted);font-weight:400;">— <?= htmlspecialchars($group['info']['nama_semester']) ?></span>
+                    <span style="font-size:.8rem;color:rgba(26,35,64,.6);font-weight:400;">— <?= htmlspecialchars($group['info']['nama_semester']) ?></span>
                 </div>
                 <div class="matkul-progress">
                     <span><?= $kumpul_count ?>/<?= count($tugas_list) ?> terkumpul</span>

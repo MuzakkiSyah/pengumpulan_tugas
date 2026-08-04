@@ -244,71 +244,20 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
     <style>
         .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:2rem; }
         @media(max-width:700px) { .stats-grid { grid-template-columns:repeat(2,1fr); } }
-        .stat-card { background:var(--bg-card); border:1px solid var(--border-color); border-radius:12px; padding:1.5rem; text-align:center; }
-        .stat-num { font-size:2.2rem; font-weight:700; background:var(--grad-primary); -webkit-background-clip:text; -webkit-text-fill-color:transparent; font-family:'Outfit',sans-serif; }
-        .stat-desc { color:var(--text-muted); font-size:0.82rem; margin-top:0.25rem; }
 
-        .tab-bar { display:flex; gap:0.5rem; margin-bottom:2rem; flex-wrap:wrap; }
-        .tab-btn { padding:0.6rem 1.2rem; border-radius:8px; border:1px solid var(--border-color); background:transparent; color:var(--text-muted); cursor:pointer; font-family:'Inter',sans-serif; font-size:0.9rem; transition:all 0.3s; }
-        .tab-btn.active { background:var(--grad-primary); color:#05070e; border-color:transparent; font-weight:600; }
-        .tab-btn:hover:not(.active) { background:rgba(255,255,255,.05); color:var(--text-main); }
-        .tab-content { display:none; }
-        .tab-content.active { display:block; }
-
-        .form-row { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
-        @media(max-width:700px) { .form-row { grid-template-columns:1fr; } }
         .form-row-3 { display:grid; grid-template-columns:1fr 2fr 2fr; gap:1rem; }
         @media(max-width:700px) { .form-row-3 { grid-template-columns:1fr; } }
 
-        /* Semester row */
-        .semester-row { display:flex; justify-content:space-between; align-items:center; padding:1rem 1.25rem; border-radius:10px; background:rgba(15,18,35,.5); border:1px solid var(--border-color); margin-bottom:.75rem; gap:1rem; flex-wrap:wrap; }
-        .semester-name { font-weight:600; }
-
-        /* Matkul Card */
-        .matkul-group { margin-bottom:2rem; }
-        .matkul-header {
-            display:flex; justify-content:space-between; align-items:center;
-            padding:1rem 1.5rem; border-radius:12px 12px 0 0;
-            background:linear-gradient(135deg,rgba(79,172,254,.12),rgba(0,242,254,.06));
-            border:1px solid rgba(79,172,254,.2);
-            gap:1rem; flex-wrap:wrap;
-        }
-        .matkul-title { font-size:1.05rem; font-weight:700; display:flex; align-items:center; gap:.6rem; }
-        .matkul-code { background:rgba(0,242,254,.12); color:var(--accent-cyan); border:1px solid rgba(0,242,254,.2); padding:.2rem .6rem; border-radius:6px; font-size:.8rem; font-family:'Outfit',sans-serif; font-weight:700; }
-        .matkul-body { border:1px solid rgba(79,172,254,.15); border-top:none; border-radius:0 0 12px 12px; overflow:hidden; }
+        /* Assignment row within matkul body */
         .assignment-row { display:flex; justify-content:space-between; align-items:center; padding:1rem 1.5rem; border-bottom:1px solid var(--border-color); gap:1rem; flex-wrap:wrap; transition:background .2s; }
         .assignment-row:last-child { border-bottom:none; }
-        .assignment-row:hover { background:rgba(255,255,255,.02); }
+        .assignment-row:hover { background:var(--accent-primary-light); }
         .assignment-info { flex:1; }
-        .assignment-title { font-weight:600; font-size:.98rem; margin-bottom:.3rem; }
+        .assignment-title { font-weight:600; font-size:.98rem; margin-bottom:.3rem; color:var(--text-main); }
         .assignment-meta { display:flex; gap:1rem; flex-wrap:wrap; font-size:.8rem; color:var(--text-muted); align-items:center; }
-        .deadline-text { color:var(--color-warning); }
-        .deadline-text.overdue { color:var(--color-error); }
-        .progress-bar-wrap { height:4px; background:rgba(255,255,255,.06); border-radius:99px; margin-top:.6rem; overflow:hidden; width:180px; max-width:100%; }
-        .progress-bar-fill { height:100%; background:var(--grad-primary); border-radius:99px; }
         .action-btns { display:flex; gap:.4rem; }
-        .btn-sm { padding:.4rem .85rem; font-size:.82rem; border-radius:6px; }
-
-        /* Matkul list for kelola */
-        .matkul-list-item { display:flex; justify-content:space-between; align-items:center; padding:.9rem 1.25rem; border-radius:10px; background:rgba(15,18,35,.5); border:1px solid var(--border-color); margin-bottom:.6rem; gap:1rem; flex-wrap:wrap; }
-        .matkul-list-info { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
-
-        /* Filter bar */
-        .filter-bar { display:flex; gap:.6rem; flex-wrap:wrap; margin-bottom:1.5rem; align-items:center; }
-        .filter-label { color:var(--text-muted); font-size:.88rem; }
-
-        /* Empty state */
-        .empty-state { text-align:center; padding:3.5rem 2rem; color:var(--text-muted); }
-        .empty-icon { font-size:3rem; margin-bottom:.75rem; }
-
-        /* Detail panel */
-        .detail-panel { position:fixed; top:0; right:0; width:480px; max-width:100%; height:100vh; background:rgba(7,9,19,.97); backdrop-filter:blur(20px); border-left:1px solid var(--border-color); z-index:200; overflow-y:auto; padding:2rem; transform:translateX(100%); transition:transform .35s cubic-bezier(.4,0,.2,1); }
-        .detail-panel.open { transform:translateX(0); }
-        .detail-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); backdrop-filter:blur(4px); z-index:199; display:none; }
-        .detail-overlay.open { display:block; }
-        .sub-row { display:flex; justify-content:space-between; align-items:center; padding:.75rem 0; border-bottom:1px solid var(--border-color); gap:.5rem; flex-wrap:wrap; }
-        .sub-row:last-child { border-bottom:none; }
     </style>
+
 </head>
 <body>
 
