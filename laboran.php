@@ -145,6 +145,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $message = 'Gagal menghapus tugas.';
             $message_type = 'error';
         }
+    }
+
     // --- Tambah Mahasiswa Manual ---
     elseif ($_POST['action'] === 'add_mahasiswa') {
         $nama  = clean_input($_POST['nama_lengkap']);
