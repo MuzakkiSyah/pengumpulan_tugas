@@ -145,9 +145,141 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $message = 'Gagal menghapus tugas.';
             $message_type = 'error';
         }
+    // --- Tambah Mahasiswa Manual ---
+    elseif ($_POST['action'] === 'add_mahasiswa') {
+        $nama  = clean_input($_POST['nama_lengkap']);
+        $nim   = clean_input($_POST['nim']);
+        $uname = clean_input($_POST['username_mhs']);
+        $pass  = clean_input($_POST['password_mhs']);
+        if (empty($nama) || empty($nim) || empty($uname) || empty($pass)) {
+            $message = 'Semua field mahasiswa wajib diisi!';
+            $message_type = 'error';
+        } else {
+            try {
+                $hash = password_hash($pass, PASSWORD_BCRYPT);
+                $stmt = $pdo->prepare("INSERT INTO users (username, password, nama_lengkap, nomor_induk, role) VALUES (?, ?, ?, ?, 'mahasiswa')");
+                $stmt->execute([$uname, $hash, $nama, $nim]);
+                $message = "Akun mahasiswa $nama berhasil dibuat!";
+                $message_type = 'success';
+            } catch (PDOException $e) {
+                $message = 'Username atau NIM sudah terdaftar!';
+                $message_type = 'error';
+            }
+        }
+    }
+
+    // --- Reset Password Mahasiswa ---
+    elseif ($_POST['action'] === 'reset_password') {
+        $mhs_id   = (int)$_POST['mhs_id'];
+        $new_pass = clean_input($_POST['new_password']);
+        if (empty($new_pass)) {
+            $message = 'Password baru tidak boleh kosong!';
+            $message_type = 'error';
+        } else {
+            $hash = password_hash($new_pass, PASSWORD_BCRYPT);
+            $pdo->prepare("UPDATE users SET password = ? WHERE id = ? AND role = 'mahasiswa'")->execute([$hash, $mhs_id]);
+            $message = 'Password berhasil direset!';
+            $message_type = 'success';
+        }
+    }
+
+    // --- Hapus Mahasiswa ---
+    elseif ($_POST['action'] === 'delete_mahasiswa') {
+        $mhs_id = (int)$_POST['mhs_id'];
+        try {
+            // Hapus file submissions milik mahasiswa ini
+            $subs = $pdo->prepare("SELECT path_file FROM submissions WHERE id_mahasiswa = ?");
+            $subs->execute([$mhs_id]);
+            foreach ($subs->fetchAll() as $sub) {
+                if (file_exists($sub['path_file'])) unlink($sub['path_file']);
+            }
+            $pdo->prepare("DELETE FROM users WHERE id = ? AND role = 'mahasiswa'")->execute([$mhs_id]);
+            $message = 'Akun mahasiswa berhasil dihapus!';
+            $message_type = 'success';
+        } catch (PDOException $e) {
+            $message = 'Gagal menghapus akun: ' . $e->getMessage();
+            $message_type = 'error';
+        }
+    }
+
+    // --- Import Mahasiswa via CSV ---
+    elseif ($_POST['action'] === 'import_csv') {
+        if (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
+            $message = 'Harap pilih file CSV yang valid!';
+            $message_type = 'error';
+        } else {
+            $file = $_FILES['csv_file'];
+            $ext  = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            if (!in_array($ext, ['csv', 'txt'])) {
+                $message = 'Hanya file CSV (.csv) yang didukung!';
+                $message_type = 'error';
+            } else {
+                $handle = fopen($file['tmp_name'], 'r');
+                $imported = 0;
+                $skipped  = 0;
+                $errors   = [];
+                $row_num  = 0;
+
+                while (($row = fgetcsv($handle, 1000, ',')) !== false) {
+                    $row_num++;
+                    // Skip header row
+                    if ($row_num === 1) {
+                        // Deteksi header (jika ada)
+                        if (strtolower(trim($row[0])) === 'nama_lengkap') continue;
+                    }
+                    if (empty($row[0])) continue;
+
+                    $nama  = trim($row[0]);
+                    $nim   = trim($row[1] ?? '');
+                    $uname = trim($row[2] ?? $nim); // default username = nim
+                    $pass  = trim($row[3] ?? $nim); // default password = nim
+
+                    if (empty($nama) || empty($nim)) {
+                        $errors[] = "Baris $row_num: nama/NIM kosong.";
+                        $skipped++;
+                        continue;
+                    }
+                    if (empty($uname)) $uname = $nim;
+                    if (empty($pass))  $pass  = $nim;
+
+                    try {
+                        $hash = password_hash($pass, PASSWORD_BCRYPT);
+                        $stmt = $pdo->prepare("INSERT INTO users (username, password, nama_lengkap, nomor_induk, role) VALUES (?, ?, ?, ?, 'mahasiswa')");
+                        $stmt->execute([$uname, $hash, $nama, $nim]);
+                        $imported++;
+                    } catch (PDOException $e) {
+                        $errors[] = "Baris $row_num ($nama): username/NIM duplikat, dilewati.";
+                        $skipped++;
+                    }
+                }
+                fclose($handle);
+
+                $msg_parts = ["$imported akun berhasil diimpor."];
+                if ($skipped > 0) $msg_parts[] = "$skipped dilewati.";
+                if (!empty($errors)) $msg_parts[] = implode(' | ', array_slice($errors, 0, 3));
+
+                $message = implode(' ', $msg_parts);
+                $message_type = $imported > 0 ? 'success' : 'error';
+            }
+        }
     }
 }
 
+// Download template CSV
+if (isset($_GET['download_template'])) {
+    check_login('laboran');
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="template_mahasiswa.csv"');
+    $out = fopen('php://output', 'w');
+    // BOM untuk Excel agar karakter Indonesia terbaca
+    fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
+    fputcsv($out, ['nama_lengkap', 'nim', 'username', 'password']);
+    fputcsv($out, ['Budi Santoso', '2024001', 'budi2024', '2024001']);
+    fputcsv($out, ['Siti Rahayu', '2024002', 'siti2024', '2024002']);
+    fputcsv($out, ['Ahmad Fauzi', '2024003', '', '']); // kosong = default nim
+    fclose($out);
+    exit();
+}
 // =====================================================================
 // AMBIL DATA
 // =====================================================================
@@ -343,6 +475,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
         <button class="tab-btn" id="tab-btn-matkul"     onclick="switchTab('matkul')">📁 Mata Kuliah</button>
         <button class="tab-btn" id="tab-btn-semester"   onclick="switchTab('semester')">📅 Semester</button>
         <button class="tab-btn" id="tab-btn-buat-tugas" onclick="switchTab('buat-tugas')">➕ Buat Tugas</button>
+        <button class="tab-btn" id="tab-btn-akun"       onclick="switchTab('akun')">👥 Akun Mahasiswa</button>
     </div>
 
     <!-- ============================================================ -->
@@ -616,6 +749,154 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
         </div>
     </div>
 
+    <!-- ============================================================ -->
+    <!-- TAB: KELOLA AKUN MAHASISWA -->
+    <!-- ============================================================ -->
+    <div class="tab-content" id="tab-akun">
+
+        <!-- Import CSV -->
+        <div class="glass-panel" style="margin-bottom:2rem;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem;">
+                <div>
+                    <h3 style="font-size:1.2rem; margin-bottom:.3rem;">📤 Import Mahasiswa via CSV</h3>
+                    <p style="font-size:.88rem; color:var(--text-muted);">Upload file CSV berisi data mahasiswa. Kolom: <code style="background:var(--bg-input); padding:.1rem .4rem; border-radius:4px;">nama_lengkap, nim, username, password</code></p>
+                </div>
+                <a href="laboran.php?download_template=1" class="btn btn-secondary btn-sm" style="white-space:nowrap;">
+                    ⬇ Unduh Template CSV
+                </a>
+            </div>
+
+            <div style="background:var(--accent-gold-light); border:1.5px solid rgba(242,183,5,.3); border-radius:8px; padding:1rem; margin-bottom:1.25rem; font-size:.85rem; color:var(--accent-gold-dark);">
+                💡 <strong>Tips:</strong> Jika kolom <em>username</em> atau <em>password</em> dikosongkan, otomatis menggunakan NIM. File Excel: simpan dulu sebagai <strong>.CSV (Comma delimited)</strong>.
+            </div>
+
+            <form method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="action" value="import_csv">
+                <div style="display:flex; gap:.75rem; align-items:flex-end; flex-wrap:wrap;">
+                    <div style="flex:1; min-width:220px;">
+                        <label class="form-label">Pilih File CSV</label>
+                        <input type="file" name="csv_file" class="form-input" accept=".csv,.txt" required style="padding:.6rem;">
+                    </div>
+                    <button type="submit" class="btn btn-primary">📤 Import Sekarang</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Tambah Manual -->
+        <div class="glass-panel" style="margin-bottom:2rem;">
+            <h3 style="font-size:1.2rem; margin-bottom:1.5rem;">➕ Tambah Mahasiswa Manual</h3>
+            <form method="POST">
+                <input type="hidden" name="action" value="add_mahasiswa">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Nama Lengkap</label>
+                        <input type="text" name="nama_lengkap" class="form-input" placeholder="Nama lengkap mahasiswa" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">NIM</label>
+                        <input type="text" name="nim" class="form-input" placeholder="Nomor Induk Mahasiswa" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Username</label>
+                        <input type="text" name="username_mhs" class="form-input" placeholder="Username untuk login" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input type="text" name="password_mhs" class="form-input" placeholder="Password awal (bisa diubah nanti)" required>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">➕ Tambah Mahasiswa</button>
+            </form>
+        </div>
+
+        <!-- Daftar Mahasiswa -->
+        <h3 style="font-size:1.2rem; margin-bottom:1rem;">👥 Daftar Akun Mahasiswa</h3>
+        <?php
+        $daftar_mhs = $pdo->query("
+            SELECT u.*, 
+                   COUNT(sub.id) as total_kumpul
+            FROM users u
+            LEFT JOIN submissions sub ON sub.id_mahasiswa = u.id
+            WHERE u.role = 'mahasiswa'
+            GROUP BY u.id
+            ORDER BY u.nama_lengkap ASC
+        ")->fetchAll();
+        ?>
+        <?php if (empty($daftar_mhs)): ?>
+            <div class="glass-panel">
+                <div class="empty-state">
+                    <div class="empty-icon">👤</div>
+                    <p>Belum ada akun mahasiswa. Import CSV atau tambah secara manual.</p>
+                </div>
+            </div>
+        <?php else: ?>
+            <!-- Search filter -->
+            <div style="margin-bottom:1rem;">
+                <input type="text" id="searchMhs" class="form-input" placeholder="🔍 Cari nama atau NIM..." oninput="filterMhs()" style="max-width:350px;">
+            </div>
+            <div class="table-wrapper">
+                <table class="custom-table" id="mhsTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Nama Lengkap</th>
+                            <th>NIM</th>
+                            <th>Username</th>
+                            <th>Total Kumpul</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($daftar_mhs as $i => $mhs): ?>
+                        <tr class="mhs-row">
+                            <td style="color:var(--text-muted);"><?= $i+1 ?></td>
+                            <td style="font-weight:500; color:var(--text-main);"><?= htmlspecialchars($mhs['nama_lengkap']) ?></td>
+                            <td><code style="background:var(--bg-input); padding:.15rem .5rem; border-radius:4px; font-size:.85rem;"><?= htmlspecialchars($mhs['nomor_induk']) ?></code></td>
+                            <td><?= htmlspecialchars($mhs['username']) ?></td>
+                            <td><span class="badge badge-info"><?= $mhs['total_kumpul'] ?> file</span></td>
+                            <td>
+                                <div style="display:flex; gap:.4rem; flex-wrap:wrap;">
+                                    <!-- Reset Password -->
+                                    <button class="btn btn-secondary btn-sm" onclick="showResetForm(<?= $mhs['id'] ?>, '<?= htmlspecialchars($mhs['nama_lengkap']) ?>')">🔑 Reset</button>
+                                    <!-- Hapus -->
+                                    <form method="POST" onsubmit="return confirm('Hapus akun <?= htmlspecialchars(addslashes($mhs['nama_lengkap'])) ?>? Semua file tugasnya ikut terhapus!')">
+                                        <input type="hidden" name="action" value="delete_mahasiswa">
+                                        <input type="hidden" name="mhs_id" value="<?= $mhs['id'] ?>">
+                                        <button type="submit" class="btn btn-danger btn-sm">🗑</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            <p style="font-size:.82rem; color:var(--text-muted); margin-top:.75rem;">Total: <?= count($daftar_mhs) ?> mahasiswa terdaftar</p>
+        <?php endif; ?>
+
+        <!-- Modal Reset Password (hidden by default) -->
+        <div id="resetModal" style="display:none; position:fixed; inset:0; background:rgba(11,78,162,.15); backdrop-filter:blur(4px); z-index:300; justify-content:center; align-items:center;">
+            <div style="background:#fff; border:1.5px solid var(--border-color); border-radius:16px; padding:2rem; width:100%; max-width:420px; box-shadow:var(--shadow-lg);">
+                <h4 style="margin-bottom:1.25rem;">🔑 Reset Password Mahasiswa</h4>
+                <p id="resetMhsName" style="color:var(--text-muted); font-size:.9rem; margin-bottom:1.25rem;"></p>
+                <form method="POST">
+                    <input type="hidden" name="action" value="reset_password">
+                    <input type="hidden" name="mhs_id" id="resetMhsId">
+                    <div class="form-group">
+                        <label class="form-label">Password Baru</label>
+                        <input type="text" name="new_password" class="form-input" placeholder="Masukkan password baru" required>
+                    </div>
+                    <div style="display:flex; gap:.75rem;">
+                        <button type="submit" class="btn btn-primary">✅ Simpan</button>
+                        <button type="button" class="btn btn-secondary" onclick="closeResetModal()">Batal</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <footer><p>KumpulTugas &copy; 2026 — Sistem Pengumpulan Tugas Mahasiswa</p></footer>
@@ -638,8 +919,30 @@ function closeDetail() {
         switchTab('matkul');
     <?php elseif ($_POST['action'] === 'add_assignment'): ?>
         switchTab('buat-tugas');
+    <?php elseif (in_array($_POST['action'], ['add_mahasiswa','delete_mahasiswa','reset_password','import_csv'])): ?>
+        switchTab('akun');
     <?php endif; ?>
 <?php endif; ?>
+
+function filterMhs() {
+    const q = document.getElementById('searchMhs').value.toLowerCase();
+    document.querySelectorAll('#mhsTable .mhs-row').forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(q) ? '' : 'none';
+    });
+}
+
+function showResetForm(id, nama) {
+    document.getElementById('resetMhsId').value = id;
+    document.getElementById('resetMhsName').textContent = 'Mahasiswa: ' + nama;
+    const modal = document.getElementById('resetModal');
+    modal.style.display = 'flex';
+}
+
+function closeResetModal() {
+    document.getElementById('resetModal').style.display = 'none';
+}
 </script>
+
 </body>
 </html>

@@ -3,11 +3,7 @@ require_once 'config.php';
 
 // Jika sudah login, alihkan ke dashboard masing-masing
 if (isset($_SESSION['user_id'])) {
-    if ($_SESSION['role'] === 'laboran') {
-        header("Location: laboran.php");
-    } else {
-        header("Location: mahasiswa.php");
-    }
+    header("Location: " . ($_SESSION['role'] === 'laboran' ? 'laboran.php' : 'mahasiswa.php'));
     exit();
 }
 
@@ -16,7 +12,7 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = clean_input($_POST['username']);
     $password = clean_input($_POST['password']);
-    
+
     if (empty($username) || empty($password)) {
         $error = 'Username dan Password harus diisi!';
     } else {
@@ -24,27 +20,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
             $stmt->execute([$username]);
             $user = $stmt->fetch();
-            
+
             if ($user && password_verify($password, $user['password'])) {
-                // Set Session
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['username'] = $user['username'];
+                $_SESSION['user_id']      = $user['id'];
+                $_SESSION['username']     = $user['username'];
                 $_SESSION['nama_lengkap'] = $user['nama_lengkap'];
-                $_SESSION['nomor_induk'] = $user['nomor_induk'];
-                $_SESSION['role'] = $user['role'];
-                
-                // Alihkan ke halaman yang sesuai
-                if ($user['role'] === 'laboran') {
-                    header("Location: laboran.php");
-                } else {
-                    header("Location: mahasiswa.php");
-                }
+                $_SESSION['nomor_induk']  = $user['nomor_induk'];
+                $_SESSION['role']         = $user['role'];
+
+                header("Location: " . ($user['role'] === 'laboran' ? 'laboran.php' : 'mahasiswa.php'));
                 exit();
             } else {
                 $error = 'Username atau Password salah!';
             }
         } catch (PDOException $e) {
-            $error = 'Terjadi kesalahan sistem: ' . $e->getMessage();
+            $error = 'Terjadi kesalahan sistem.';
         }
     }
 }
@@ -56,42 +46,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Sistem Pengumpulan Tugas</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        .login-card-hero {
+            background: var(--grad-hero);
+            border-radius: 16px 16px 0 0;
+            padding: 2.5rem 2.5rem 2rem;
+            text-align: center;
+            margin: -2.5rem -2.5rem 2rem -2.5rem;
+        }
+        .login-card-hero h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #FFFFFF;
+            margin-bottom: .25rem;
+        }
+        .login-card-hero p { color: rgba(255,255,255,.7); font-size: .9rem; }
+        .login-card-hero .hero-logo { font-size: 2.5rem; margin-bottom: .5rem; }
+    </style>
 </head>
 <body>
-    <div class="auth-wrapper">
-        <div class="glass-panel auth-card">
-            <div class="auth-header">
-                <div class="auth-logo">KumpulTugas</div>
-                <div class="auth-subtitle">Silakan login untuk mengakses akun Anda</div>
-            </div>
-            
-            <?php if (!empty($error)): ?>
-                <div class="alert alert-error">
-                    <span class="btn-icon">⚠️</span>
-                    <span><?php echo $error; ?></span>
-                </div>
-            <?php endif; ?>
-            
-            <form action="login.php" method="POST">
-                <div class="form-group">
-                    <label for="username" class="form-label">Username</label>
-                    <input type="text" id="username" name="username" class="form-input" placeholder="Masukkan username Anda" required autofocus>
-                </div>
-                
-                <div class="form-group">
-                    <label for="password" class="form-label">Password</label>
-                    <input type="password" id="password" name="password" class="form-input" placeholder="Masukkan password Anda" required>
-                </div>
-                
-                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">
-                    Masuk
-                </button>
-            </form>
-            
-            <div style="margin-top: 1.5rem; text-align: center; font-size: 0.9rem; color: var(--text-muted);">
-                Belum punya akun? <a href="register.php">Daftar Sekarang</a>
-            </div>
+<div class="auth-wrapper">
+    <div class="auth-card">
+        <!-- Hero Header -->
+        <div class="login-card-hero">
+            <div class="hero-logo">🎓</div>
+            <h1>KumpulTugas</h1>
+            <p>Sistem Pengumpulan Tugas Mahasiswa</p>
         </div>
+
+        <?php if (!empty($error)): ?>
+            <div class="alert alert-error">⚠️ <?= $error ?></div>
+        <?php endif; ?>
+
+        <form action="login.php" method="POST">
+            <div class="form-group">
+                <label for="username" class="form-label">Username</label>
+                <input type="text" id="username" name="username" class="form-input"
+                    placeholder="Masukkan username Anda" required autofocus
+                    value="<?= isset($_POST['username']) ? htmlspecialchars($_POST['username']) : '' ?>">
+            </div>
+            <div class="form-group">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" id="password" name="password" class="form-input"
+                    placeholder="Masukkan password Anda" required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%; margin-top:.5rem;">
+                🔐 Masuk
+            </button>
+        </form>
+
+        <p style="margin-top:1.5rem; text-align:center; font-size:.82rem; color:var(--text-muted);">
+            Belum punya akun? Hubungi <strong>Asisten Laboran</strong> untuk mendapatkan akun.
+        </p>
     </div>
+</div>
 </body>
 </html>

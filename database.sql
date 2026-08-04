@@ -63,7 +63,14 @@ CREATE TABLE IF NOT EXISTS `submissions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Data semester awal
-INSERT IGNORE INTO `semesters` (`id`, `nama_semester`, `status`) 
+INSERT IGNORE INTO `semesters` (`id`, `nama_semester`, `status`)
 VALUES (1, 'Ganjil 2026/2027', 'aktif'), (2, 'Genap 2026/2027', 'nonaktif');
 
--- Catatan: Buat akun melalui halaman register.php setelah aplikasi berjalan
+-- =========================================================
+-- CATATAN PENTING:
+-- Setelah import database ini, jalankan setup.php di browser:
+--   http://localhost/pengumpulan_tugas/setup.php
+-- untuk membuat akun admin pertama (admin / labrm2026).
+-- Hapus setup.php setelah berhasil dijalankan!
+-- =========================================================
+
