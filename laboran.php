@@ -5,6 +5,16 @@ check_login('laboran');
 $user_id = $_SESSION['user_id'];
 $message = '';
 $message_type = '';
+$flash_tab = '';
+
+if (isset($_SESSION['flash_message'])) {
+    $message = $_SESSION['flash_message'];
+    $message_type = $_SESSION['flash_type'];
+    if (isset($_SESSION['flash_tab'])) {
+        $flash_tab = $_SESSION['flash_tab'];
+    }
+    unset($_SESSION['flash_message'], $_SESSION['flash_type'], $_SESSION['flash_tab']);
+}
 
 // =====================================================================
 // PROSES SEMUA AKSI POST
@@ -76,7 +86,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $message = "Mata kuliah $nama_matkul berhasil ditambahkan!";
                 $message_type = 'success';
             } catch (PDOException $e) {
-                $message = 'Kode mata kuliah sudah ada di semester ini.';
+                if ($e->getCode() == 23000) {
+                    $message = 'Kode mata kuliah sudah ada di semester ini.';
+                } else {
+                    $message = 'Gagal menambahkan: ' . $e->getMessage();
+                }
                 $message_type = 'error';
             }
         } else {
@@ -264,6 +278,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $message_type = $imported > 0 ? 'success' : 'error';
             }
         }
+    }
+
+    // Post-Redirect-Get pattern to prevent form resubmission
+    if ($message !== '') {
+        $active_tab = 'tugas';
+        if (in_array($_POST['action'], ['add_semester','delete_semester','toggle_semester'])) {
+            $active_tab = 'semester';
+        } elseif (in_array($_POST['action'], ['add_matkul','delete_matkul'])) {
+            $active_tab = 'matkul';
+        } elseif ($_POST['action'] === 'add_assignment') {
+            $active_tab = 'buat-tugas';
+        } elseif (in_array($_POST['action'], ['add_mahasiswa','delete_mahasiswa','reset_password','import_csv'])) {
+            $active_tab = 'akun';
+        }
+
+        $_SESSION['flash_message'] = $message;
+        $_SESSION['flash_type'] = $message_type;
+        $_SESSION['flash_tab'] = $active_tab;
+        
+        $qs = $_SERVER['QUERY_STRING'] ? '?' . $_SERVER['QUERY_STRING'] : '';
+        header("Location: laboran.php" . $qs);
+        exit();
     }
 }
 
@@ -914,7 +950,9 @@ function closeDetail() {
     document.getElementById('detailPanel').classList.remove('open');
     document.getElementById('detailOverlay').classList.remove('open');
 }
-<?php if (isset($_POST['action'])): ?>
+<?php if ($flash_tab): ?>
+    switchTab('<?= $flash_tab ?>');
+<?php elseif (isset($_POST['action'])): ?>
     <?php if (in_array($_POST['action'], ['add_semester','delete_semester','toggle_semester'])): ?>
         switchTab('semester');
     <?php elseif (in_array($_POST['action'], ['add_matkul','delete_matkul'])): ?>
