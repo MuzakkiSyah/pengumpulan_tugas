@@ -86,10 +86,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $message = "Mata kuliah $nama_matkul berhasil ditambahkan!";
                 $message_type = 'success';
             } catch (PDOException $e) {
-                if ($e->getCode() == 23000) {
+                if (isset($e->errorInfo[1]) && $e->errorInfo[1] == 1062) {
                     $message = 'Kode mata kuliah sudah ada di semester ini.';
                 } else {
-                    $message = 'Gagal menambahkan: ' . $e->getMessage();
+                    $message = 'Gagal menambahkan mata kuliah: ' . $e->getMessage();
                 }
                 $message_type = 'error';
             }

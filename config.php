@@ -28,13 +28,29 @@ function check_login($required_role = null) {
         exit();
     }
     
-    if ($required_role && $_SESSION['role'] !== $required_role) {
-        // Alihkan sesuai dengan role yang sebenarnya
-        if ($_SESSION['role'] === 'laboran') {
-            header("Location: laboran.php");
-        } else {
-            header("Location: mahasiswa.php");
+    global $pdo;
+    try {
+        $stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
+        $stmt->execute([$_SESSION['user_id']]);
+        $user = $stmt->fetch();
+        
+        if (!$user) {
+            session_destroy();
+            header("Location: login.php");
+            exit();
         }
+        
+        if ($required_role && $user['role'] !== $required_role) {
+            if ($user['role'] === 'laboran') {
+                header("Location: laboran.php");
+            } else {
+                header("Location: mahasiswa.php");
+            }
+            exit();
+        }
+    } catch (PDOException $e) {
+        session_destroy();
+        header("Location: login.php");
         exit();
     }
 }
