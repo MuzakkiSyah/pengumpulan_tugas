@@ -56,11 +56,17 @@ CREATE TABLE IF NOT EXISTS `submissions` (
   `id_mahasiswa` INT NOT NULL,
   `nama_file` VARCHAR(255) NOT NULL,
   `path_file` VARCHAR(255) NOT NULL,
+  `nilai` TINYINT UNSIGNED DEFAULT NULL COMMENT '0-100',
+  `catatan_nilai` TEXT DEFAULT NULL,
   `waktu_unggah` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (`id_assignment`) REFERENCES `assignments`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`id_mahasiswa`) REFERENCES `users`(`id`) ON DELETE CASCADE,
   UNIQUE KEY `unique_submission` (`id_assignment`, `id_mahasiswa`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Jika database sudah ada, jalankan ALTER berikut secara manual di phpMyAdmin:
+-- ALTER TABLE `submissions` ADD COLUMN `nilai` TINYINT UNSIGNED DEFAULT NULL AFTER `waktu_unggah`;
+-- ALTER TABLE `submissions` ADD COLUMN `catatan_nilai` TEXT DEFAULT NULL AFTER `nilai`;
 
 -- Data semester awal
 INSERT IGNORE INTO `semesters` (`id`, `nama_semester`, `status`)
