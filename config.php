@@ -4,6 +4,10 @@ if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 
+// Load Excel library
+require_once 'SimpleXLSX.php';
+require_once 'SimpleXLSXGen.php';
+
 // Konfigurasi Database
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');

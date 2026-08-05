@@ -79,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $kode_matkul = strtoupper(clean_input($_POST['kode_matkul']));
         $nama_matkul = clean_input($_POST['nama_matkul']);
         $semester_level = (int)$_POST['semester_level'];
-        $deskripsi   = clean_input($_POST['deskripsi_matkul']);
+        $deskripsi   = null;
         if (!empty($id_semester) && !empty($kode_matkul) && !empty($nama_matkul) && $semester_level >= 1 && $semester_level <= 6) {
             try {
                 $stmt = $pdo->prepare("INSERT INTO mata_kuliah (id_semester, kode_matkul, nama_matkul, semester, deskripsi, dibuat_oleh) VALUES (?, ?, ?, ?, ?, ?)");
@@ -234,161 +234,150 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
     }
 
-    // --- Import Mahasiswa via CSV ---
-    elseif ($_POST['action'] === 'import_csv') {
-        if (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
-            $message = 'Harap pilih file CSV yang valid!';
+    // --- Import Mahasiswa via Excel ---
+    elseif ($_POST['action'] === 'import_excel') {
+        if (!isset($_FILES['excel_file']) || $_FILES['excel_file']['error'] !== UPLOAD_ERR_OK) {
+            $message = 'Harap pilih file Excel yang valid!';
             $message_type = 'error';
         } else {
-            $file = $_FILES['csv_file'];
+            $file = $_FILES['excel_file'];
             $ext  = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-            if (!in_array($ext, ['csv', 'txt'])) {
-                $message = 'Hanya file CSV (.csv) yang didukung!';
+            if ($ext !== 'xlsx') {
+                $message = 'Hanya file Excel (.xlsx) yang didukung!';
                 $message_type = 'error';
             } else {
-                ini_set('auto_detect_line_endings', true);
-                $delimiter = detect_csv_delimiter($file['tmp_name']);
-                $handle = fopen($file['tmp_name'], 'r');
-                $imported = 0;
-                $skipped  = 0;
-                $errors   = [];
-                $row_num  = 0;
+                if ($xlsx = \Shuchkin\SimpleXLSX::parse($file['tmp_name'])) {
+                    $imported = 0;
+                    $skipped  = 0;
+                    $errors   = [];
+                    $row_num  = 0;
 
-                while (($row = fgetcsv($handle, 1000, $delimiter)) !== false) {
-                    if ($row_num === 0 && isset($row[0])) {
-                        // Strip UTF-8 BOM if present
-                        if (substr($row[0], 0, 3) === "\xEF\xBB\xBF") {
-                            $row[0] = substr($row[0], 3);
+                    foreach ($xlsx->rows() as $row) {
+                        $row_num++;
+                        // Skip header row
+                        if ($row_num === 1) {
+                            if (isset($row[0]) && strtolower(trim($row[0])) === 'nama_lengkap') continue;
+                        }
+                        if (!isset($row[0]) || trim($row[0]) === '') continue;
+
+                        $nama  = trim($row[0]);
+                        $nim   = trim($row[1] ?? '');
+                        $uname = trim($row[2] ?? $nim); // default username = nim
+                        $pass  = trim($row[3] ?? $nim); // default password = nim
+                        $semester = isset($row[4]) && trim($row[4]) !== '' ? (int)trim($row[4]) : 1;
+                        if ($semester < 1 || $semester > 6) $semester = 1;
+
+                        if (empty($nama) || empty($nim)) {
+                            $errors[] = "Baris $row_num: nama/NIM kosong.";
+                            $skipped++;
+                            continue;
+                        }
+                        if (empty($uname)) $uname = $nim;
+                        if (empty($pass))  $pass  = $nim;
+
+                        try {
+                            $hash = password_hash($pass, PASSWORD_BCRYPT);
+                            $stmt = $pdo->prepare("INSERT INTO users (username, password, nama_lengkap, nomor_induk, role, semester) VALUES (?, ?, ?, ?, 'mahasiswa', ?)");
+                            $stmt->execute([$uname, $hash, $nama, $nim, $semester]);
+                            $imported++;
+                        } catch (PDOException $e) {
+                            $errors[] = "Baris $row_num ($nama): username/NIM duplikat, dilewati.";
+                            $skipped++;
                         }
                     }
-                    $row_num++;
-                    // Skip header row
-                    if ($row_num === 1) {
-                        // Deteksi header (jika ada)
-                        if (strtolower(trim($row[0])) === 'nama_lengkap') continue;
-                    }
-                    if (empty($row[0])) continue;
 
-                    $nama  = trim($row[0]);
-                    $nim   = trim($row[1] ?? '');
-                    $uname = trim($row[2] ?? $nim); // default username = nim
-                    $pass  = trim($row[3] ?? $nim); // default password = nim
-                    $semester = isset($row[4]) && trim($row[4]) !== '' ? (int)trim($row[4]) : 1;
-                    if ($semester < 1 || $semester > 6) $semester = 1;
+                    $msg_parts = ["$imported akun berhasil diimpor."];
+                    if ($skipped > 0) $msg_parts[] = "$skipped dilewati.";
+                    if (!empty($errors)) $msg_parts[] = implode(' | ', array_slice($errors, 0, 3));
 
-                    if (empty($nama) || empty($nim)) {
-                        $errors[] = "Baris $row_num: nama/NIM kosong.";
-                        $skipped++;
-                        continue;
-                    }
-                    if (empty($uname)) $uname = $nim;
-                    if (empty($pass))  $pass  = $nim;
-
-                    try {
-                        $hash = password_hash($pass, PASSWORD_BCRYPT);
-                        $stmt = $pdo->prepare("INSERT INTO users (username, password, nama_lengkap, nomor_induk, role, semester) VALUES (?, ?, ?, ?, 'mahasiswa', ?)");
-                        $stmt->execute([$uname, $hash, $nama, $nim, $semester]);
-                        $imported++;
-                    } catch (PDOException $e) {
-                        $errors[] = "Baris $row_num ($nama): username/NIM duplikat, dilewati.";
-                        $skipped++;
-                    }
+                    $message = implode(' ', $msg_parts);
+                    $message_type = $imported > 0 ? 'success' : 'error';
+                } else {
+                    $message = 'Gagal memproses file Excel: ' . \Shuchkin\SimpleXLSX::parseError();
+                    $message_type = 'error';
                 }
-                fclose($handle);
-
-                $msg_parts = ["$imported akun berhasil diimpor."];
-                if ($skipped > 0) $msg_parts[] = "$skipped dilewati.";
-                if (!empty($errors)) $msg_parts[] = implode(' | ', array_slice($errors, 0, 3));
-
-                $message = implode(' ', $msg_parts);
-                $message_type = $imported > 0 ? 'success' : 'error';
             }
         }
     }
 
-    // --- Import Mata Kuliah via CSV ---
-    elseif ($_POST['action'] === 'import_matkul_csv') {
-        if (!isset($_FILES['csv_file_matkul']) || $_FILES['csv_file_matkul']['error'] !== UPLOAD_ERR_OK) {
-            $message = 'Harap pilih file CSV yang valid!';
+    // --- Import Mata Kuliah via Excel ---
+    elseif ($_POST['action'] === 'import_matkul_excel') {
+        if (!isset($_FILES['excel_file_matkul']) || $_FILES['excel_file_matkul']['error'] !== UPLOAD_ERR_OK) {
+            $message = 'Harap pilih file Excel yang valid!';
             $message_type = 'error';
         } else {
-            $file = $_FILES['csv_file_matkul'];
+            $file = $_FILES['excel_file_matkul'];
             $ext  = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-            if (!in_array($ext, ['csv', 'txt'])) {
-                $message = 'Hanya file CSV (.csv) yang didukung!';
+            if ($ext !== 'xlsx') {
+                $message = 'Hanya file Excel (.xlsx) yang didukung!';
                 $message_type = 'error';
             } else {
-                ini_set('auto_detect_line_endings', true);
-                $delimiter = detect_csv_delimiter($file['tmp_name']);
-                $handle = fopen($file['tmp_name'], 'r');
-                $imported = 0;
-                $skipped  = 0;
-                $errors   = [];
-                $row_num  = 0;
+                if ($xlsx = \Shuchkin\SimpleXLSX::parse($file['tmp_name'])) {
+                    $imported = 0;
+                    $skipped  = 0;
+                    $errors   = [];
+                    $row_num  = 0;
 
-                while (($row = fgetcsv($handle, 1000, $delimiter)) !== false) {
-                    if ($row_num === 0 && isset($row[0])) {
-                        // Strip UTF-8 BOM if present
-                        if (substr($row[0], 0, 3) === "\xEF\xBB\xBF") {
-                            $row[0] = substr($row[0], 3);
+                    foreach ($xlsx->rows() as $row) {
+                        $row_num++;
+                        // Skip header row
+                        if ($row_num === 1) {
+                            if (isset($row[0]) && strtolower(trim($row[0])) === 'kode_matkul') continue;
                         }
-                    }
-                    $row_num++;
-                    // Skip header row
-                    if ($row_num === 1) {
-                        if (strtolower(trim($row[0])) === 'kode_matkul') continue;
-                    }
-                    if (empty($row[0])) continue;
+                        if (!isset($row[0]) || trim($row[0]) === '') continue;
 
-                    $kode_matkul        = strtoupper(trim($row[0]));
-                    $nama_matkul        = trim($row[1] ?? '');
-                    $semester_akademik  = trim($row[2] ?? '');
-                    $tingkat_semester   = isset($row[3]) && trim($row[3]) !== '' ? (int)trim($row[3]) : 1;
-                    $deskripsi          = trim($row[4] ?? '');
+                        $kode_matkul        = strtoupper(trim($row[0]));
+                        $nama_matkul        = trim($row[1] ?? '');
+                        $semester_akademik  = trim($row[2] ?? '');
+                        $tingkat_semester   = isset($row[3]) && trim($row[3]) !== '' ? (int)trim($row[3]) : 1;
+                        $deskripsi          = null; // Deskripsi dihilangkan
 
-                    if (empty($kode_matkul) || empty($nama_matkul) || empty($semester_akademik)) {
-                        $errors[] = "Baris $row_num: Kode, Nama, atau Semester kosong.";
-                        $skipped++;
-                        continue;
-                    }
-                    if ($tingkat_semester < 1 || $tingkat_semester > 6) {
-                        $tingkat_semester = 1;
-                    }
-
-                    try {
-                        // 1. Dapatkan atau buat ID semester akademik
-                        $stmt_sem = $pdo->prepare("SELECT id FROM semesters WHERE nama_semester = ?");
-                        $stmt_sem->execute([$semester_akademik]);
-                        $sem = $stmt_sem->fetch();
-                        if ($sem) {
-                            $id_semester = $sem['id'];
-                        } else {
-                            $stmt_ins_sem = $pdo->prepare("INSERT INTO semesters (nama_semester, status) VALUES (?, 'aktif')");
-                            $stmt_ins_sem->execute([$semester_akademik]);
-                            $id_semester = $pdo->lastInsertId();
+                        if (empty($kode_matkul) || empty($nama_matkul) || empty($semester_akademik)) {
+                            $errors[] = "Baris $row_num: Kode, Nama, atau Semester kosong.";
+                            $skipped++;
+                            continue;
+                        }
+                        if ($tingkat_semester < 1 || $tingkat_semester > 6) {
+                            $tingkat_semester = 1;
                         }
 
-                        // 2. Insert mata kuliah
-                        $stmt = $pdo->prepare("INSERT INTO mata_kuliah (id_semester, kode_matkul, nama_matkul, semester, deskripsi, dibuat_oleh) VALUES (?, ?, ?, ?, ?, ?)");
-                        $stmt->execute([$id_semester, $kode_matkul, $nama_matkul, $tingkat_semester, $deskripsi ?: null, $user_id]);
-                        $imported++;
-                    } catch (PDOException $e) {
-                        if (isset($e->errorInfo[1]) && $e->errorInfo[1] == 1062) {
-                            $errors[] = "Baris $row_num ($kode_matkul): duplikat kode matkul pada semester akademik.";
-                        } else {
-                            $errors[] = "Baris $row_num: " . $e->getMessage();
+                        try {
+                            // 1. Dapatkan atau buat ID semester akademik
+                            $stmt_sem = $pdo->prepare("SELECT id FROM semesters WHERE nama_semester = ?");
+                            $stmt_sem->execute([$semester_akademik]);
+                            $sem = $stmt_sem->fetch();
+                            if ($sem) {
+                                $id_semester = $sem['id'];
+                            } else {
+                                $stmt_ins_sem = $pdo->prepare("INSERT INTO semesters (nama_semester, status) VALUES (?, 'aktif')");
+                                $stmt_ins_sem->execute([$semester_akademik]);
+                                $id_semester = $pdo->lastInsertId();
+                            }
+
+                            // 2. Insert mata kuliah
+                            $stmt = $pdo->prepare("INSERT INTO mata_kuliah (id_semester, kode_matkul, nama_matkul, semester, deskripsi, dibuat_oleh) VALUES (?, ?, ?, ?, ?, ?)");
+                            $stmt->execute([$id_semester, $kode_matkul, $nama_matkul, $tingkat_semester, $deskripsi, $user_id]);
+                            $imported++;
+                        } catch (PDOException $e) {
+                            if (isset($e->errorInfo[1]) && $e->errorInfo[1] == 1062) {
+                                $errors[] = "Baris $row_num ($kode_matkul): duplikat kode matkul pada semester akademik.";
+                            } else {
+                                $errors[] = "Baris $row_num: " . $e->getMessage();
+                            }
+                            $skipped++;
                         }
-                        $skipped++;
                     }
+
+                    $msg_parts = ["$imported mata kuliah berhasil diimpor."];
+                    if ($skipped > 0) $msg_parts[] = "$skipped dilewati.";
+                    if (!empty($errors)) $msg_parts[] = implode(' | ', array_slice($errors, 0, 3));
+
+                    $message = implode(' ', $msg_parts);
+                    $message_type = $imported > 0 ? 'success' : 'error';
+                } else {
+                    $message = 'Gagal memproses file Excel: ' . \Shuchkin\SimpleXLSX::parseError();
+                    $message_type = 'error';
                 }
-                fclose($handle);
-
-                $msg_parts = ["$imported mata kuliah berhasil diimpor."];
-                if ($skipped > 0) $msg_parts[] = "$skipped dilewati.";
-                if (!empty($errors)) $msg_parts[] = implode(' | ', array_slice($errors, 0, 3));
-
-                $message = implode(' ', $msg_parts);
-                $message_type = $imported > 0 ? 'success' : 'error';
             }
         }
     }
@@ -433,11 +422,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $active_tab = 'tugas';
         if (in_array($_POST['action'], ['add_semester','delete_semester','toggle_semester'])) {
             $active_tab = 'semester';
-        } elseif (in_array($_POST['action'], ['add_matkul','delete_matkul','import_matkul_csv'])) {
+        } elseif (in_array($_POST['action'], ['add_matkul','delete_matkul','import_matkul_excel'])) {
             $active_tab = 'matkul';
         } elseif ($_POST['action'] === 'add_assignment') {
             $active_tab = 'buat-tugas';
-        } elseif (in_array($_POST['action'], ['add_mahasiswa','delete_mahasiswa','reset_password','import_csv'])) {
+        } elseif (in_array($_POST['action'], ['add_mahasiswa','delete_mahasiswa','reset_password','import_excel'])) {
             $active_tab = 'akun';
         }
 
@@ -451,35 +440,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-// Download template CSV
+// Download template Excel
 if (isset($_GET['download_template'])) {
     check_login('laboran');
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="template_mahasiswa.csv"');
-    $out = fopen('php://output', 'w');
-    // BOM untuk Excel agar karakter Indonesia terbaca
-    fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
-    fputcsv($out, ['nama_lengkap', 'nim', 'username', 'password', 'semester']);
-    fputcsv($out, ['Budi Santoso', '2024001', 'budi2024', '2024001', '1']);
-    fputcsv($out, ['Siti Rahayu', '2024002', 'siti2024', '2024002', '2']);
-    fputcsv($out, ['Ahmad Fauzi', '2024003', '', '', '3']); // kosong = default nim
-    fclose($out);
+    $data = [
+        ['nama_lengkap', 'nim', 'username', 'password', 'semester'],
+        ['Budi Santoso', '2024001', 'budi2024', '2024001', 1],
+        ['Siti Rahayu', '2024002', 'siti2024', '2024002', 2],
+        ['Ahmad Fauzi', '2024003', '', '', 3] // kosong = default nim
+    ];
+    \Shuchkin\SimpleXLSXGen::fromArray($data)->downloadAs('template_mahasiswa.xlsx');
     exit();
 }
 
-// Download template CSV Mata Kuliah
+// Download template Excel Mata Kuliah
 if (isset($_GET['download_template_matkul'])) {
     check_login('laboran');
-    header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="template_mata_kuliah.csv"');
-    $out = fopen('php://output', 'w');
-    // BOM untuk Excel agar karakter Indonesia terbaca
-    fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
-    fputcsv($out, ['kode_matkul', 'nama_matkul', 'semester_akademik', 'tingkat_semester', 'deskripsi']);
-    fputcsv($out, ['CS101', 'Pengantar Teknologi Informasi', 'Ganjil 2026/2027', '1', 'Dasar-dasar teknologi informasi']);
-    fputcsv($out, ['CS201', 'Algoritma & Pemrograman', 'Ganjil 2026/2027', '2', 'Algoritma tingkat lanjut']);
-    fputcsv($out, ['CS302', 'Basis Data', 'Genap 2026/2027', '3', 'Pengantar konsep DBMS']);
-    fclose($out);
+    $data = [
+        ['kode_matkul', 'nama_matkul', 'semester_akademik', 'tingkat_semester'],
+        ['CS101', 'Pengantar Teknologi Informasi', 'Ganjil 2026/2027', 1],
+        ['CS201', 'Algoritma & Pemrograman', 'Ganjil 2026/2027', 2],
+        ['CS302', 'Basis Data', 'Genap 2026/2027', 3]
+    ];
+    \Shuchkin\SimpleXLSXGen::fromArray($data)->downloadAs('template_mata_kuliah.xlsx');
     exit();
 }
 // =====================================================================
@@ -875,15 +858,15 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
     <!-- ============================================================ -->
     <div class="tab-content" id="tab-matkul">
 
-        <!-- Import CSV Matkul -->
+        <!-- Import Excel Matkul -->
         <div class="glass-panel" style="margin-bottom:2rem;">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem;">
                 <div>
-                    <h3 style="font-size:1.2rem; margin-bottom:.3rem;">📤 Import Mata Kuliah via CSV</h3>
-                    <p style="font-size:.88rem; color:var(--text-muted);">Upload file CSV berisi data mata kuliah. Kolom: <code style="background:var(--bg-input); padding:.1rem .4rem; border-radius:4px;">kode_matkul, nama_matkul, semester_akademik, tingkat_semester, deskripsi</code></p>
+                    <h3 style="font-size:1.2rem; margin-bottom:.3rem;">📤 Import Mata Kuliah via Excel</h3>
+                    <p style="font-size:.88rem; color:var(--text-muted);">Upload file Excel berisi data mata kuliah. Kolom: <code style="background:var(--bg-input); padding:.1rem .4rem; border-radius:4px;">kode_matkul, nama_matkul, semester_akademik, tingkat_semester</code></p>
                 </div>
                 <a href="laboran.php?download_template_matkul=1" class="btn btn-secondary btn-sm" style="white-space:nowrap;">
-                    ⬇ Unduh Template CSV
+                    ⬇ Unduh Template Excel
                 </a>
             </div>
 
@@ -892,11 +875,11 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
             </div>
 
             <form method="POST" enctype="multipart/form-data">
-                <input type="hidden" name="action" value="import_matkul_csv">
+                <input type="hidden" name="action" value="import_matkul_excel">
                 <div style="display:flex; gap:.75rem; align-items:flex-end; flex-wrap:wrap;">
                     <div style="flex:1; min-width:220px;">
-                        <label class="form-label">Pilih File CSV Mata Kuliah</label>
-                        <input type="file" name="csv_file_matkul" class="form-input" accept=".csv,.txt" required style="padding:.6rem;">
+                        <label class="form-label">Pilih File Excel Mata Kuliah</label>
+                        <input type="file" name="excel_file_matkul" class="form-input" accept=".xlsx" required style="padding:.6rem;">
                     </div>
                     <button type="submit" class="btn btn-primary">📤 Import Sekarang</button>
                 </div>
@@ -941,10 +924,6 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                     <label class="form-label">Nama Mata Kuliah</label>
                     <input type="text" name="nama_matkul" class="form-input" placeholder="Contoh: Algoritma dan Pemrograman" required>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Deskripsi (Opsional)</label>
-                    <textarea name="deskripsi_matkul" class="form-textarea" rows="2" placeholder="Deskripsi singkat mata kuliah..."></textarea>
-                </div>
                 <button type="submit" class="btn btn-primary">➕ Tambah Mata Kuliah</button>
             </form>
             <?php endif; ?>
@@ -981,9 +960,6 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                             <span class="badge badge-info" style="font-size:.7rem; padding:.1rem .4rem; text-transform:none; border-radius:4px; font-weight:normal;">Semester <?= $mk['semester'] ?></span>
                             <div>
                                 <div style="font-weight:600;font-size:.95rem;"><?= htmlspecialchars($mk['nama_matkul']) ?></div>
-                                <?php if ($mk['deskripsi']): ?>
-                                    <div style="font-size:.8rem;color:var(--text-muted);margin-top:.1rem;"><?= htmlspecialchars($mk['deskripsi']) ?></div>
-                                <?php endif; ?>
                             </div>
                         </div>
                         <form method="POST" onsubmit="return confirm('Hapus mata kuliah ini? Semua tugas di dalamnya ikut terhapus!')">
@@ -1110,28 +1086,28 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
     <!-- ============================================================ -->
     <div class="tab-content" id="tab-akun">
 
-        <!-- Import CSV -->
+        <!-- Import Excel -->
         <div class="glass-panel" style="margin-bottom:2rem;">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem;">
                 <div>
-                    <h3 style="font-size:1.2rem; margin-bottom:.3rem;">📤 Import Mahasiswa via CSV</h3>
-                    <p style="font-size:.88rem; color:var(--text-muted);">Upload file CSV berisi data mahasiswa. Kolom: <code style="background:var(--bg-input); padding:.1rem .4rem; border-radius:4px;">nama_lengkap, nim, username, password</code></p>
+                    <h3 style="font-size:1.2rem; margin-bottom:.3rem;">📤 Import Mahasiswa via Excel</h3>
+                    <p style="font-size:.88rem; color:var(--text-muted);">Upload file Excel berisi data mahasiswa. Kolom: <code style="background:var(--bg-input); padding:.1rem .4rem; border-radius:4px;">nama_lengkap, nim, username, password, semester</code></p>
                 </div>
                 <a href="laboran.php?download_template=1" class="btn btn-secondary btn-sm" style="white-space:nowrap;">
-                    ⬇ Unduh Template CSV
+                    ⬇ Unduh Template Excel
                 </a>
             </div>
 
             <div style="background:var(--accent-gold-light); border:1.5px solid rgba(242,183,5,.3); border-radius:8px; padding:1rem; margin-bottom:1.25rem; font-size:.85rem; color:var(--accent-gold-dark);">
-                💡 <strong>Tips:</strong> Jika kolom <em>username</em> atau <em>password</em> dikosongkan, otomatis menggunakan NIM. File Excel: simpan dulu sebagai <strong>.CSV (Comma delimited)</strong>.
+                💡 <strong>Tips:</strong> Jika kolom <em>username</em> atau <em>password</em> dikosongkan, otomatis menggunakan NIM. Format file harus berupa <strong>.xlsx</strong>.
             </div>
 
             <form method="POST" enctype="multipart/form-data">
-                <input type="hidden" name="action" value="import_csv">
+                <input type="hidden" name="action" value="import_excel">
                 <div style="display:flex; gap:.75rem; align-items:flex-end; flex-wrap:wrap;">
                     <div style="flex:1; min-width:220px;">
-                        <label class="form-label">Pilih File CSV</label>
-                        <input type="file" name="csv_file" class="form-input" accept=".csv,.txt" required style="padding:.6rem;">
+                        <label class="form-label">Pilih File Excel (.xlsx)</label>
+                        <input type="file" name="excel_file" class="form-input" accept=".xlsx" required style="padding:.6rem;">
                     </div>
                     <button type="submit" class="btn btn-primary">📤 Import Sekarang</button>
                 </div>
