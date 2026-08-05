@@ -115,6 +115,32 @@ try {
     }
 }
 
+// Dynamic database migration: add prodi column to users table if not exists
+try {
+    $pdo->query("SELECT prodi FROM users LIMIT 1");
+} catch (PDOException $e) {
+    try {
+        $pdo->exec("ALTER TABLE users ADD COLUMN prodi VARCHAR(50) DEFAULT 'D3 RMIK' AFTER role");
+        // Auto detect prodi based on NIM prefix
+        $pdo->exec("UPDATE users SET prodi = 'D3 RMIK' WHERE nomor_induk LIKE 'D22%' AND role = 'mahasiswa'");
+        $pdo->exec("UPDATE users SET prodi = 'D4 MIK' WHERE nomor_induk LIKE 'D13%' AND role = 'mahasiswa'");
+    } catch (PDOException $ex) {
+        // Ignore errors
+    }
+}
+
+// Dynamic database migration: add prodi column to assignments table if not exists
+try {
+    $pdo->query("SELECT prodi FROM assignments LIMIT 1");
+} catch (PDOException $e) {
+    try {
+        $pdo->exec("ALTER TABLE assignments ADD COLUMN prodi VARCHAR(50) DEFAULT 'all' AFTER kelas");
+    } catch (PDOException $ex) {
+        // Ignore errors
+    }
+}
+
+
 // Dynamic database migration: seed default admin/laboran account if not exists
 try {
     $check_admin = $pdo->query("SELECT id FROM users WHERE username = 'admin' LIMIT 1");

@@ -10,7 +10,10 @@ CREATE TABLE IF NOT EXISTS `users` (
   `nama_lengkap` VARCHAR(100) NOT NULL,
   `nomor_induk` VARCHAR(50) UNIQUE NOT NULL, -- NIP untuk laboran, NIM untuk mahasiswa
   `role` ENUM('laboran', 'mahasiswa') NOT NULL,
+  `prodi` VARCHAR(50) DEFAULT 'D3 RMIK',
+  `jabatan` ENUM('asisten_laboran', 'laboran', 'kepala_laboratorium') DEFAULT NULL,
   `semester` TINYINT DEFAULT 1,
+  `kelas` VARCHAR(20) DEFAULT 'A',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -45,6 +48,8 @@ CREATE TABLE IF NOT EXISTS `assignments` (
   `deskripsi` TEXT DEFAULT NULL,
   `deadline` DATETIME NOT NULL,
   `tipe_file` VARCHAR(100) DEFAULT 'all', -- Ekstensi yang diperbolehkan, misal: "pdf,zip,doc,docx"
+  `kelas` VARCHAR(20) DEFAULT 'all',
+  `prodi` VARCHAR(50) DEFAULT 'all',
   `dibuat_oleh` INT NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`id_matkul`) REFERENCES `mata_kuliah`(`id`) ON DELETE CASCADE,

@@ -141,6 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $deadline   = clean_input($_POST['deadline']);
         $tipe_file  = clean_input($_POST['tipe_file']);
         $kelas_post = $_POST['kelas_target'] ?? ['all'];
+        $prodi_target = clean_input($_POST['prodi_target'] ?? 'all');
         if (in_array('all', $kelas_post) || empty($kelas_post)) {
             $kelas_target = 'all';
         } else {
@@ -152,8 +153,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         if (!empty($id_matkul) && !empty($judul) && !empty($deadline)) {
             try {
-                $stmt = $pdo->prepare("INSERT INTO assignments (id_matkul, judul, deskripsi, deadline, tipe_file, kelas, dibuat_oleh) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$id_matkul, $judul, $deskripsi, $deadline, $tipe_file ?: 'all', $kelas_target, $user_id]);
+                $stmt = $pdo->prepare("INSERT INTO assignments (id_matkul, judul, deskripsi, deadline, tipe_file, kelas, prodi, dibuat_oleh) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$id_matkul, $judul, $deskripsi, $deadline, $tipe_file ?: 'all', $kelas_target, $prodi_target, $user_id]);
                 $message = 'Tugas berhasil dibuat!';
                 $message_type = 'success';
             } catch (PDOException $e) {
@@ -192,6 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $pass  = clean_input($_POST['password_mhs']);
         $semester = (int)$_POST['semester_mhs'];
         $kelas = strtoupper(clean_input($_POST['kelas_mhs'] ?? 'A'));
+        $prodi = clean_input($_POST['prodi_mhs'] ?? 'D3 RMIK');
         if (empty($kelas)) $kelas = 'A';
 
         if (empty($nama) || empty($nim) || empty($uname) || empty($pass) || $semester < 1 || $semester > 6) {
@@ -200,9 +202,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         } else {
             try {
                 $hash = password_hash($pass, PASSWORD_BCRYPT);
-                $stmt = $pdo->prepare("INSERT INTO users (username, password, nama_lengkap, nomor_induk, role, semester, kelas) VALUES (?, ?, ?, ?, 'mahasiswa', ?, ?)");
-                $stmt->execute([$uname, $hash, $nama, $nim, $semester, $kelas]);
-                $message = "Akun mahasiswa $nama (Kelas $kelas) berhasil dibuat!";
+                $stmt = $pdo->prepare("INSERT INTO users (username, password, nama_lengkap, nomor_induk, role, semester, kelas, prodi) VALUES (?, ?, ?, ?, 'mahasiswa', ?, ?, ?)");
+                $stmt->execute([$uname, $hash, $nama, $nim, $semester, $kelas, $prodi]);
+                $message = "Akun mahasiswa $nama ($prodi - Kelas $kelas) berhasil dibuat!";
                 $message_type = 'success';
             } catch (PDOException $e) {
                 $message = 'Username atau NIM sudah terdaftar!';
@@ -216,6 +218,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $mhs_id   = (int)$_POST['mhs_id'];
         $semester = (int)$_POST['semester_mhs'];
         $kelas    = strtoupper(clean_input($_POST['kelas_mhs'] ?? 'A'));
+        $prodi    = clean_input($_POST['prodi_mhs'] ?? 'D3 RMIK');
         $new_pass = clean_input($_POST['new_password']);
         if (empty($kelas)) $kelas = 'A';
         
@@ -223,12 +226,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             try {
                 if (!empty($new_pass)) {
                     $hash = password_hash($new_pass, PASSWORD_BCRYPT);
-                    $stmt = $pdo->prepare("UPDATE users SET semester = ?, kelas = ?, password = ? WHERE id = ? AND role = 'mahasiswa'");
-                    $stmt->execute([$semester, $kelas, $hash, $mhs_id]);
+                    $stmt = $pdo->prepare("UPDATE users SET semester = ?, kelas = ?, prodi = ?, password = ? WHERE id = ? AND role = 'mahasiswa'");
+                    $stmt->execute([$semester, $kelas, $prodi, $hash, $mhs_id]);
                     $message = 'Data mahasiswa dan password berhasil diperbarui!';
                 } else {
-                    $stmt = $pdo->prepare("UPDATE users SET semester = ?, kelas = ? WHERE id = ? AND role = 'mahasiswa'");
-                    $stmt->execute([$semester, $kelas, $mhs_id]);
+                    $stmt = $pdo->prepare("UPDATE users SET semester = ?, kelas = ?, prodi = ? WHERE id = ? AND role = 'mahasiswa'");
+                    $stmt->execute([$semester, $kelas, $prodi, $mhs_id]);
                     $message = 'Data mahasiswa berhasil diperbarui!';
                 }
                 $message_type = 'success';
@@ -303,10 +306,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         if (empty($uname)) $uname = $nim;
                         if (empty($pass))  $pass  = $nim;
 
+                        // Auto-detect prodi based on NIM prefix
+                        $prodi = 'D3 RMIK';
+                        if (stripos($nim, 'D22') === 0) {
+                            $prodi = 'D3 RMIK';
+                        } elseif (stripos($nim, 'D13') === 0) {
+                            $prodi = 'D4 MIK';
+                        }
+
                         try {
                             $hash = password_hash($pass, PASSWORD_BCRYPT);
-                            $stmt = $pdo->prepare("INSERT INTO users (username, password, nama_lengkap, nomor_induk, role, semester, kelas) VALUES (?, ?, ?, ?, 'mahasiswa', ?, ?)");
-                            $stmt->execute([$uname, $hash, $nama, $nim, $semester, $kelas]);
+                            $stmt = $pdo->prepare("INSERT INTO users (username, password, nama_lengkap, nomor_induk, role, semester, kelas, prodi) VALUES (?, ?, ?, ?, 'mahasiswa', ?, ?, ?)");
+                            $stmt->execute([$uname, $hash, $nama, $nim, $semester, $kelas, $prodi]);
                             $imported++;
                         } catch (PDOException $e) {
                             $errors[] = "Baris $row_num ($nama): username/NIM duplikat, dilewati.";
@@ -649,7 +660,7 @@ if ($detail_assignment_id > 0) {
     $stmt->execute([$detail_assignment_id]);
     $detail_assignment = $stmt->fetch();
     $stmt = $pdo->prepare("
-        SELECT sub.*, u.nama_lengkap, u.nomor_induk, u.kelas
+        SELECT sub.*, u.nama_lengkap, u.nomor_induk, u.kelas, u.prodi
         FROM submissions sub
         JOIN users u ON sub.id_mahasiswa = u.id
         WHERE sub.id_assignment = ?
@@ -769,7 +780,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
             <div class="submission-card" data-class="<?= htmlspecialchars($sub['kelas'] ?? 'A') ?>" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; background: var(--bg-card);">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.75rem;">
                     <div>
-                        <div style="font-weight:600; font-size:.95rem; color:var(--text-main);"><?= htmlspecialchars($sub['nama_lengkap']) ?> <span class="badge badge-info" style="font-size:.7rem; font-weight:normal; border-radius:4px; padding:.1rem .3rem; text-transform:none; margin-left:.25rem;">Kelas <?= htmlspecialchars($sub['kelas'] ?? 'A') ?></span></div>
+                        <div style="font-weight:600; font-size:.95rem; color:var(--text-main);"><?= htmlspecialchars($sub['nama_lengkap']) ?> <span class="badge badge-info" style="font-size:.7rem; font-weight:normal; border-radius:4px; padding:.1rem .3rem; text-transform:none; margin-left:.25rem;"><?= htmlspecialchars($sub['prodi'] ?? 'D3 RMIK') ?> - Kelas <?= htmlspecialchars($sub['kelas'] ?? 'A') ?></span></div>
                         <div style="font-size:.8rem; color:var(--text-muted);">NIM: <?= htmlspecialchars($sub['nomor_induk']) ?></div>
                         <div style="font-size:.78rem; color:var(--text-muted-dark); margin-top:0.25rem;">📎 <?= htmlspecialchars($sub['nama_file']) ?></div>
                         <div style="font-size:.75rem; color:var(--text-muted-dark);">⏱ <?= format_tanggal($sub['waktu_unggah']) ?></div>
@@ -1027,7 +1038,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                                 <span class="deadline-text <?= $is_overdue ? 'overdue' : '' ?>">
                                     <?= $is_overdue ? '❌' : '⏰' ?> <?= format_tanggal($a['deadline']) ?>
                                 </span>
-                                <span>🎯 Kelas: <?= $a['kelas'] === 'all' ? 'Semua Kelas' : htmlspecialchars(str_replace(',', ', ', $a['kelas'])) ?></span>
+                                <span>🎯 Target: <?= $a['prodi'] === 'all' ? 'Semua Prodi' : htmlspecialchars($a['prodi']) ?> (<?= $a['kelas'] === 'all' ? 'Semua Kelas' : 'Kelas ' . htmlspecialchars(str_replace(',', ', ', $a['kelas'])) ?>)</span>
                                 <span>👥 <?= $a['jumlah_pengumpul'] ?>/<?= $total_mahasiswa ?> mengumpulkan</span>
                             </div>
                             <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:<?= $pct ?>%"></div></div>
@@ -1312,20 +1323,30 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                         <input type="text" name="tipe_file" class="form-input" placeholder="pdf,zip (kosong = semua)">
                     </div>
                 </div>
-                <div class="form-group" style="margin-bottom:1.5rem;">
-                    <label class="form-label">Kelas Penerima</label>
-                    <div style="display: flex; gap: 1rem; align-items: center; padding: 0.6rem 1rem; background: var(--bg-input); border: 1.5px solid var(--border-color); border-radius: 8px; flex-wrap: wrap;">
-                        <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.9rem; cursor: pointer; color: var(--text-main);">
-                            <input type="checkbox" name="kelas_target[]" value="all" id="chkAllKelas" checked onchange="toggleAllKelas(this)"> Semua Kelas
-                        </label>
-                        <?php
-                        $existing_classes = $pdo->query("SELECT DISTINCT kelas FROM users WHERE role = 'mahasiswa' AND kelas IS NOT NULL AND kelas != '' ORDER BY kelas ASC")->fetchAll(PDO::FETCH_COLUMN);
-                        foreach ($existing_classes as $cls):
-                        ?>
-                            <label class="chk-kelas-label" data-class-name="<?= htmlspecialchars($cls) ?>" style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.9rem; cursor: pointer; color: var(--text-main);">
-                                <input type="checkbox" name="kelas_target[]" value="<?= htmlspecialchars($cls) ?>" class="chk-kelas" onchange="toggleClassOption(this)"> Kelas <?= htmlspecialchars($cls) ?>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                    <div class="form-group">
+                        <label class="form-label">Program Studi Penerima</label>
+                        <select name="prodi_target" class="form-select" required>
+                            <option value="all">Semua Program Studi (D3 & D4)</option>
+                            <option value="D3 RMIK">D3 RMIK (D22)</option>
+                            <option value="D4 MIK">D4 MIK (D13)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Kelas Penerima</label>
+                        <div style="display: flex; gap: 1rem; align-items: center; padding: 0.6rem 1rem; background: var(--bg-input); border: 1.5px solid var(--border-color); border-radius: 8px; flex-wrap: wrap; height: 42px;">
+                            <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.9rem; cursor: pointer; color: var(--text-main);">
+                                <input type="checkbox" name="kelas_target[]" value="all" id="chkAllKelas" checked onchange="toggleAllKelas(this)"> Semua Kelas
                             </label>
-                        <?php endforeach; ?>
+                            <?php
+                            $existing_classes = $pdo->query("SELECT DISTINCT kelas FROM users WHERE role = 'mahasiswa' AND kelas IS NOT NULL AND kelas != '' ORDER BY kelas ASC")->fetchAll(PDO::FETCH_COLUMN);
+                            foreach ($existing_classes as $cls):
+                            ?>
+                                <label class="chk-kelas-label" data-class-name="<?= htmlspecialchars($cls) ?>" style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.9rem; cursor: pointer; color: var(--text-main);">
+                                    <input type="checkbox" name="kelas_target[]" value="<?= htmlspecialchars($cls) ?>" class="chk-kelas" onchange="toggleClassOption(this)"> Kelas <?= htmlspecialchars($cls) ?>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
                     </div>
                 </div>
                 <div class="form-group">
@@ -1384,10 +1405,10 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                     </div>
                     <div class="form-group">
                         <label class="form-label">NIM</label>
-                        <input type="text" name="nim" class="form-input" placeholder="Nomor Induk Mahasiswa" required>
+                        <input type="text" name="nim" id="nim_mhs" class="form-input" placeholder="Nomor Induk Mahasiswa" required oninput="detectProdiFromNim(this.value)">
                     </div>
                 </div>
-                <div class="form-row-3" style="display:grid; grid-template-columns: 2fr 2fr 1fr 1fr; gap: 1rem; margin-bottom:1rem;">
+                <div class="form-row-3" style="display:grid; grid-template-columns: 2fr 2fr 2fr 1fr 1fr; gap: 1rem; margin-bottom:1rem;">
                     <div class="form-group">
                         <label class="form-label">Username</label>
                         <input type="text" name="username_mhs" class="form-input" placeholder="Username untuk login" required>
@@ -1395,6 +1416,13 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                     <div class="form-group">
                         <label class="form-label">Password</label>
                         <input type="text" name="password_mhs" class="form-input" placeholder="Password awal (bisa diubah nanti)" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Program Studi</label>
+                        <select name="prodi_mhs" class="form-select" required>
+                            <option value="D3 RMIK">D3 RMIK</option>
+                            <option value="D4 MIK">D4 MIK</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Semester</label>
@@ -1482,7 +1510,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                             <th>#</th>
                             <th>Nama Lengkap</th>
                             <th>NIM</th>
-                            <th>Username</th>
+                            <th>Program Studi</th>
                             <th>Semester</th>
                             <th>Kelas</th>
                             <th>Total Kumpul</th>
@@ -1495,14 +1523,14 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                             <td style="color:var(--text-muted);"><?= $i+1 ?></td>
                             <td style="font-weight:500; color:var(--text-main);"><?= htmlspecialchars($mhs['nama_lengkap']) ?></td>
                             <td><code style="background:var(--bg-input); padding:.15rem .5rem; border-radius:4px; font-size:.85rem;"><?= htmlspecialchars($mhs['nomor_induk']) ?></code></td>
-                            <td><?= htmlspecialchars($mhs['username']) ?></td>
+                            <td><span class="badge badge-inactive" style="font-weight:500; font-size:.8rem;"><?= htmlspecialchars($mhs['prodi'] ?? 'D3 RMIK') ?></span></td>
                             <td>Semester <?= htmlspecialchars($mhs['semester'] ?? 1) ?></td>
                             <td>Kelas <?= htmlspecialchars($mhs['kelas'] ?? 'A') ?></td>
                             <td><span class="badge badge-info"><?= $mhs['total_kumpul'] ?> file</span></td>
                             <td>
                                 <div style="display:flex; gap:.4rem; flex-wrap:wrap;">
                                     <!-- Edit -->
-                                    <button class="btn btn-secondary btn-sm" onclick="showResetForm(<?= $mhs['id'] ?>, '<?= htmlspecialchars(addslashes($mhs['nama_lengkap'])) ?>', <?= $mhs['semester'] ?? 1 ?>, '<?= htmlspecialchars(addslashes($mhs['kelas'] ?? 'A')) ?>')">📝 Edit</button>
+                                    <button class="btn btn-secondary btn-sm" onclick="showResetForm(<?= $mhs['id'] ?>, '<?= htmlspecialchars(addslashes($mhs['nama_lengkap'])) ?>', <?= $mhs['semester'] ?? 1 ?>, '<?= htmlspecialchars(addslashes($mhs['kelas'] ?? 'A')) ?>', '<?= htmlspecialchars(addslashes($mhs['prodi'] ?? 'D3 RMIK')) ?>')">📝 Edit</button>
                                     <!-- Hapus -->
                                     <form method="POST" onsubmit="return confirm('Hapus akun <?= htmlspecialchars(addslashes($mhs['nama_lengkap'])) ?>? Semua file tugasnya ikut terhapus!')">
                                         <input type="hidden" name="action" value="delete_mahasiswa">
@@ -1527,6 +1555,13 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                 <form method="POST">
                     <input type="hidden" name="action" value="edit_mahasiswa">
                     <input type="hidden" name="mhs_id" id="resetMhsId">
+                    <div class="form-group" style="margin-bottom:1rem;">
+                        <label class="form-label">Program Studi</label>
+                        <select name="prodi_mhs" id="editMhsProdi" class="form-select" required>
+                            <option value="D3 RMIK">D3 RMIK</option>
+                            <option value="D4 MIK">D4 MIK</option>
+                        </select>
+                    </div>
                     <div class="form-group" style="margin-bottom:1rem;">
                         <label class="form-label">Semester Tingkat</label>
                         <select name="semester_mhs" id="editMhsSemester" class="form-select" required>
@@ -1732,11 +1767,22 @@ function filterMhs() {
     });
 }
 
-function showResetForm(id, nama, semester, kelas) {
+function detectProdiFromNim(nim) {
+    const prodiSelect = document.getElementsByName('prodi_mhs')[0];
+    if (!prodiSelect) return;
+    if (nim.startsWith('D22') || nim.startsWith('d22')) {
+        prodiSelect.value = 'D3 RMIK';
+    } else if (nim.startsWith('D13') || nim.startsWith('d13')) {
+        prodiSelect.value = 'D4 MIK';
+    }
+}
+
+function showResetForm(id, nama, semester, kelas, prodi) {
     document.getElementById('resetMhsId').value = id;
     document.getElementById('resetMhsName').textContent = 'Mahasiswa: ' + nama;
     document.getElementById('editMhsSemester').value = semester;
     document.getElementById('editMhsKelas').value = kelas;
+    document.getElementById('editMhsProdi').value = prodi || 'D3 RMIK';
     const modal = document.getElementById('resetModal');
     modal.style.display = 'flex';
 }

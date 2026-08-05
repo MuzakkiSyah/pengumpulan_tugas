@@ -119,8 +119,18 @@ if ($filter_semester > 0) {
 $all_matkul = $stmt->fetchAll();
 
 // Bangun WHERE clause untuk tugas
-$where_clauses = ["s.status = 'aktif'", "mk.semester = ?", "(a.kelas = 'all' OR FIND_IN_SET(?, a.kelas) > 0)"];
-$params = [$user_id, $student_semester, $current_user['kelas'] ?? 'A'];
+$where_clauses = [
+    "s.status = 'aktif'",
+    "mk.semester = ?",
+    "(a.prodi = 'all' OR a.prodi = ?)",
+    "(a.kelas = 'all' OR FIND_IN_SET(?, a.kelas) > 0)"
+];
+$params = [
+    $user_id,
+    $student_semester,
+    $current_user['prodi'] ?? 'D3 RMIK',
+    $current_user['kelas'] ?? 'A'
+];
 if ($filter_matkul > 0) {
     $where_clauses[] = "a.id_matkul = ?";
     $params[] = $filter_matkul;
@@ -189,7 +199,7 @@ foreach ($all_assignments as $a) { if ($a['sub_id']) $total_kumpul++; }
         <div class="navbar-user">
             <div class="user-info">
                 <div class="user-name"><?= htmlspecialchars($_SESSION['nama_lengkap']) ?></div>
-                <div class="user-role">Mahasiswa · NIM: <?= htmlspecialchars($_SESSION['nomor_induk']) ?> · Semester <?= $student_semester ?> (Kelas <?= htmlspecialchars($current_user['kelas'] ?? 'A') ?>)</div>
+                <div class="user-role">Mahasiswa · NIM: <?= htmlspecialchars($_SESSION['nomor_induk']) ?> · <?= htmlspecialchars($current_user['prodi'] ?? 'D3 RMIK') ?> · Semester <?= $student_semester ?> (Kelas <?= htmlspecialchars($current_user['kelas'] ?? 'A') ?>)</div>
             </div>
             <a href="logout.php" class="btn btn-secondary btn-sm">Logout</a>
         </div>
