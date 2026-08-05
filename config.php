@@ -70,6 +70,17 @@ try {
     }
 }
 
+// Dynamic database migration: add kelas column to users table if not exists
+try {
+    $pdo->query("SELECT kelas FROM users LIMIT 1");
+} catch (PDOException $e) {
+    try {
+        $pdo->exec("ALTER TABLE users ADD COLUMN kelas VARCHAR(20) DEFAULT 'A' AFTER semester");
+    } catch (PDOException $ex) {
+        // Ignore errors
+    }
+}
+
 // Dynamic database migration: add semester column to mata_kuliah table if not exists
 try {
     $pdo->query("SELECT semester FROM mata_kuliah LIMIT 1");

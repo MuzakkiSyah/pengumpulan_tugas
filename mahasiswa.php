@@ -179,7 +179,7 @@ foreach ($all_assignments as $a) { if ($a['sub_id']) $total_kumpul++; }
         <div class="navbar-user">
             <div class="user-info">
                 <div class="user-name"><?= htmlspecialchars($_SESSION['nama_lengkap']) ?></div>
-                <div class="user-role">Mahasiswa · NIM: <?= htmlspecialchars($_SESSION['nomor_induk']) ?> · Semester <?= $student_semester ?></div>
+                <div class="user-role">Mahasiswa · NIM: <?= htmlspecialchars($_SESSION['nomor_induk']) ?> · Semester <?= $student_semester ?> (Kelas <?= htmlspecialchars($current_user['kelas'] ?? 'A') ?>)</div>
             </div>
             <a href="logout.php" class="btn btn-secondary btn-sm">Logout</a>
         </div>
