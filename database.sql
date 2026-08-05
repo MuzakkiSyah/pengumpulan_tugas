@@ -65,6 +65,19 @@ CREATE TABLE IF NOT EXISTS `submissions` (
   UNIQUE KEY `unique_submission` (`id_assignment`, `id_mahasiswa`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Tabel Riwayat Feedback / Penilaian (Comment History)
+CREATE TABLE IF NOT EXISTS `submission_feedback` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `id_submission` INT NOT NULL,
+  `id_laboran` INT NOT NULL,
+  `nilai` TINYINT UNSIGNED DEFAULT NULL,
+  `catatan_nilai` TEXT DEFAULT NULL,
+  `status` VARCHAR(20) DEFAULT 'dikumpul',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`id_submission`) REFERENCES `submissions`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`id_laboran`) REFERENCES `users`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Jika database sudah ada, jalankan ALTER berikut secara manual di phpMyAdmin:
 -- ALTER TABLE `submissions` ADD COLUMN `nilai` TINYINT UNSIGNED DEFAULT NULL AFTER `waktu_unggah`;
 -- ALTER TABLE `submissions` ADD COLUMN `catatan_nilai` TEXT DEFAULT NULL AFTER `nilai`;

@@ -32,6 +32,29 @@ try {
     }
 }
 
+// Dynamic database migration: create submission_feedback table if not exists
+try {
+    $pdo->query("SELECT 1 FROM submission_feedback LIMIT 1");
+} catch (PDOException $e) {
+    try {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS `submission_feedback` (
+              `id` INT AUTO_INCREMENT PRIMARY KEY,
+              `id_submission` INT NOT NULL,
+              `id_laboran` INT NOT NULL,
+              `nilai` TINYINT UNSIGNED DEFAULT NULL,
+              `catatan_nilai` TEXT DEFAULT NULL,
+              `status` VARCHAR(20) DEFAULT 'dikumpul',
+              `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY (`id_submission`) REFERENCES `submissions`(`id`) ON DELETE CASCADE,
+              FOREIGN KEY (`id_laboran`) REFERENCES `users`(`id`) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ");
+    } catch (PDOException $ex) {
+        // Ignore errors
+    }
+}
+
 
 // Fungsi bantu untuk mengecek login
 function check_login($required_role = null) {

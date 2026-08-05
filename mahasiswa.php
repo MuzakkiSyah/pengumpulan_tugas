@@ -306,18 +306,62 @@ foreach ($all_assignments as $a) { if ($a['sub_id']) $total_kumpul++; }
                             <a href="download.php?sub_id=<?= $a['sub_id'] ?>" class="btn btn-secondary btn-sm" style="text-decoration:none;font-size:.78rem;">⬇ Unduh</a>
                         </div>
 
-                        <!-- Kotak Nilai & Komentar -->
-                        <?php if ($a['nilai'] !== null || !empty($a['catatan_nilai'])): ?>
+                        <!-- Kotak Nilai & Komentar (Timeline Riwayat Umpan Balik) -->
+                        <?php 
+                            $stmt_fb = $pdo->prepare("
+                                SELECT sf.*, u.nama_lengkap as nama_laboran 
+                                FROM submission_feedback sf 
+                                JOIN users u ON sf.id_laboran = u.id 
+                                WHERE sf.id_submission = ? 
+                                ORDER BY sf.created_at ASC
+                            ");
+                            $stmt_fb->execute([$a['sub_id']]);
+                            $feedback_logs = $stmt_fb->fetchAll();
+                        ?>
+                        <?php if (!empty($feedback_logs) || $a['nilai'] !== null): ?>
                             <div class="grade-feedback-box" style="margin-top:0.75rem; margin-bottom:0.75rem; padding:0.9rem 1.1rem; border-radius:10px; background:var(--bg-main); border:1.5px solid var(--border-color);">
                                 <?php if ($a['nilai'] !== null): ?>
-                                    <div style="font-weight:700; font-size:0.92rem; margin-bottom:0.35rem; color:var(--text-main);">
+                                    <div style="font-weight:700; font-size:0.92rem; margin-bottom:0.5rem; color:var(--text-main);">
                                         Nilai Tugas: <span style="color:var(--accent-primary); font-size:1.15rem; font-family:'Outfit', sans-serif;"><?= htmlspecialchars($a['nilai']) ?></span> <span style="color:var(--text-muted); font-size:0.85rem; font-weight:normal;">/ 100</span>
                                     </div>
                                 <?php endif; ?>
-                                <?php if (!empty($a['catatan_nilai'])): ?>
-                                    <div style="font-size:0.88rem; color:var(--text-secondary); line-height:1.5;">
-                                        <strong style="color:var(--text-main); font-size:0.85rem; text-transform:uppercase; letter-spacing:0.03em; display:block; margin-bottom:0.2rem;">Komentar Laboran:</strong>
-                                        <div style="font-style:italic; background:var(--bg-card); border-left:3px solid var(--accent-primary); padding:0.5rem 0.75rem; border-radius:4px; color:var(--text-muted);"><?= nl2br(htmlspecialchars($a['catatan_nilai'])) ?></div>
+                                
+                                <?php if (!empty($feedback_logs)): ?>
+                                    <div style="font-size:0.85rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:0.6rem; border-top:1px dashed var(--border-color); padding-top:0.5rem;">
+                                        📜 Riwayat Catatan & Komentar (<?= count($feedback_logs) ?>)
+                                    </div>
+                                    <div style="display:flex; flex-direction:column; gap:0.75rem; border-left:2px solid var(--border-color); padding-left:0.8rem; margin-left:0.4rem;">
+                                        <?php foreach ($feedback_logs as $fb): ?>
+                                            <div style="position:relative;">
+                                                <!-- Timeline Dot -->
+                                                <div style="position: absolute; left: -1.12rem; top: 0.25rem; width: 6px; height: 6px; border-radius: 50%; background: <?= $fb['status'] === 'disetujui' ? 'var(--color-success)' : ($fb['status'] === 'perlu_perbaikan' ? 'var(--color-warning)' : 'var(--text-muted-dark)') ?>; border: 1.5px solid #fff; box-shadow: 0 0 0 1.5px var(--border-color);"></div>
+                                                
+                                                <div style="font-size:0.72rem; color:var(--text-muted); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.2rem;">
+                                                    <span>Pemeriksa: <strong><?= htmlspecialchars($fb['nama_laboran']) ?></strong></span>
+                                                    <span>⏱ <?= format_tanggal($fb['created_at']) ?></span>
+                                                </div>
+                                                
+                                                <div style="margin-top:0.1rem; font-size:0.82rem; color:var(--text-secondary);">
+                                                    <?php if ($fb['nilai'] !== null): ?>
+                                                        <span style="font-weight:600; color:var(--text-main);">Nilai: <?= $fb['nilai'] ?></span> · 
+                                                    <?php endif; ?>
+                                                    
+                                                    <?php if ($fb['status'] === 'disetujui'): ?>
+                                                        <span style="color:var(--color-success); font-weight:600;">Disetujui</span>
+                                                    <?php elseif ($fb['status'] === 'perlu_perbaikan'): ?>
+                                                        <span style="color:var(--color-warning); font-weight:600;">Perlu Perbaikan</span>
+                                                    <?php else: ?>
+                                                        <span style="color:var(--text-muted); font-weight:600;">Belum Dinilai</span>
+                                                    <?php endif; ?>
+                                                </div>
+                                                
+                                                <?php if (!empty($fb['catatan_nilai'])): ?>
+                                                    <div style="margin-top:0.25rem; font-size:0.8rem; font-style:italic; background:var(--bg-card); padding:0.4rem 0.6rem; border-radius:6px; color:var(--text-muted); line-height:1.45; border-left:2px solid var(--accent-primary);">
+                                                        <?= nl2br(htmlspecialchars($fb['catatan_nilai'])) ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </div>
+                                        <?php endforeach; ?>
                                     </div>
                                 <?php endif; ?>
                             </div>

@@ -289,11 +289,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         
         if ($sub_id > 0 && in_array($status, ['dikumpul', 'perlu_perbaikan', 'disetujui'])) {
             try {
+                $pdo->beginTransaction();
+                
+                // 1. Update main submission record
                 $stmt = $pdo->prepare("UPDATE submissions SET nilai = ?, catatan_nilai = ?, status = ? WHERE id = ?");
                 $stmt->execute([$nilai, $catatan, $status, $sub_id]);
+                
+                // 2. Insert into feedback history logs
+                $stmt2 = $pdo->prepare("INSERT INTO submission_feedback (id_submission, id_laboran, nilai, catatan_nilai, status) VALUES (?, ?, ?, ?, ?)");
+                $stmt2->execute([$sub_id, $_SESSION['user_id'], $nilai, $catatan, $status]);
+                
+                $pdo->commit();
                 $message = 'Nilai dan komentar berhasil disimpan!';
                 $message_type = 'success';
             } catch (PDOException $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
                 $message = 'Gagal menyimpan nilai: ' . $e->getMessage();
                 $message_type = 'error';
             }
@@ -491,7 +503,17 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                 <p>Belum ada yang mengumpulkan</p>
             </div>
         <?php else: ?>
-            <?php foreach ($detail_submissions as $sub): ?>
+            <?php foreach ($detail_submissions as $sub): 
+                $stmt_fb = $pdo->prepare("
+                    SELECT sf.*, u.nama_lengkap as nama_laboran 
+                    FROM submission_feedback sf 
+                    JOIN users u ON sf.id_laboran = u.id 
+                    WHERE sf.id_submission = ? 
+                    ORDER BY sf.created_at ASC
+                ");
+                $stmt_fb->execute([$sub['id']]);
+                $feedback_logs = $stmt_fb->fetchAll();
+            ?>
             <div class="submission-card" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; background: var(--bg-card);">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.75rem;">
                     <div>
@@ -524,6 +546,48 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                         <a href="download.php?sub_id=<?= $sub['id'] ?>" class="btn btn-secondary btn-sm" style="text-decoration:none; font-size:.78rem; padding: 0.35rem 0.65rem; display:inline-flex; align-items:center; gap:0.2rem; border-radius:6px;">⬇ Unduh</a>
                     </div>
                 </div>
+
+                <!-- Feedback Logs / Comment History Timeline -->
+                <?php if (!empty($feedback_logs)): ?>
+                    <div style="margin-top: 1rem; margin-bottom: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color);">
+                        <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem;">
+                            📜 Riwayat Komentar & Koreksi (<?= count($feedback_logs) ?>)
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem; border-left: 2px solid var(--border-color); padding-left: 0.9rem; margin-left: 0.5rem;">
+                            <?php foreach ($feedback_logs as $fb): ?>
+                                <div style="position: relative;">
+                                    <!-- Timeline Dot -->
+                                    <div style="position: absolute; left: -1.22rem; top: 0.25rem; width: 8px; height: 8px; border-radius: 50%; background: <?= $fb['status'] === 'disetujui' ? 'var(--color-success)' : ($fb['status'] === 'perlu_perbaikan' ? 'var(--color-warning)' : 'var(--text-muted-dark)') ?>; border: 2px solid #fff; box-shadow: 0 0 0 2px var(--border-color);"></div>
+                                    
+                                    <div style="font-size: 0.74rem; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.3rem;">
+                                        <span>Oleh: <strong><?= htmlspecialchars($fb['nama_laboran']) ?></strong></span>
+                                        <span>⏱ <?= format_tanggal($fb['created_at']) ?></span>
+                                    </div>
+                                    
+                                    <div style="margin-top: 0.2rem; font-size: 0.85rem; color: var(--text-secondary);">
+                                        <?php if ($fb['nilai'] !== null): ?>
+                                            <span style="font-weight: 600; color: var(--text-main);">Nilai: <?= $fb['nilai'] ?></span> · 
+                                        <?php endif; ?>
+                                        
+                                        <?php if ($fb['status'] === 'disetujui'): ?>
+                                            <span style="color: var(--color-success); font-weight: 600;">Disetujui</span>
+                                        <?php elseif ($fb['status'] === 'perlu_perbaikan'): ?>
+                                            <span style="color: var(--color-warning); font-weight: 600;">Perlu Perbaikan</span>
+                                        <?php else: ?>
+                                            <span style="color: var(--text-muted); font-weight: 600;">Belum Dinilai</span>
+                                        <?php endif; ?>
+                                    </div>
+                                    
+                                    <?php if (!empty($fb['catatan_nilai'])): ?>
+                                        <div style="margin-top: 0.3rem; font-size: 0.82rem; font-style: italic; background: var(--bg-main); padding: 0.4rem 0.6rem; border-radius: 6px; color: var(--text-muted); line-height: 1.4; border-left: 2.5px solid var(--accent-primary-mid);">
+                                            <?= nl2br(htmlspecialchars($fb['catatan_nilai'])) ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
                 
                 <!-- Grading Form Toggle -->
                 <details style="margin-top:0.5rem; border-top:1px dashed var(--border-color); padding-top:0.5rem;">
