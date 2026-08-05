@@ -103,6 +103,21 @@ try {
     }
 }
 
+// Dynamic database migration: seed default admin/laboran account if not exists
+try {
+    $check_admin = $pdo->query("SELECT id FROM users WHERE username = 'admin' LIMIT 1");
+    if (!$check_admin->fetch()) {
+        $hash = password_hash('labrm2026', PASSWORD_BCRYPT);
+        $stmt_ins_admin = $pdo->prepare("
+            INSERT INTO users (username, password, nama_lengkap, nomor_induk, role)
+            VALUES ('admin', ?, 'Rizka Muzakki Syah', '000000000', 'laboran')
+        ");
+        $stmt_ins_admin->execute([$hash]);
+    }
+} catch (PDOException $e) {
+    // Ignore migration/seeding errors
+}
+
 
 // Fungsi bantu untuk mengecek login
 function check_login($required_role = null) {
