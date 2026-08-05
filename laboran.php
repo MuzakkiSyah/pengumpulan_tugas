@@ -1099,8 +1099,20 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
             <form method="POST">
                 <input type="hidden" name="action" value="add_assignment">
                 <div class="form-group">
+                    <label class="form-label" style="font-weight: 600;">Filter Semester</label>
+                    <div class="filter-btn-group">
+                        <button type="button" class="filter-btn active" data-semester="all" onclick="filterBySemester('all')">Semua Semester</button>
+                        <button type="button" class="filter-btn" data-semester="1" onclick="filterBySemester('1')">Semester 1</button>
+                        <button type="button" class="filter-btn" data-semester="2" onclick="filterBySemester('2')">Semester 2</button>
+                        <button type="button" class="filter-btn" data-semester="3" onclick="filterBySemester('3')">Semester 3</button>
+                        <button type="button" class="filter-btn" data-semester="4" onclick="filterBySemester('4')">Semester 4</button>
+                        <button type="button" class="filter-btn" data-semester="5" onclick="filterBySemester('5')">Semester 5</button>
+                        <button type="button" class="filter-btn" data-semester="6" onclick="filterBySemester('6')">Semester 6</button>
+                    </div>
+                </div>
+                <div class="form-group">
                     <label class="form-label">Mata Kuliah</label>
-                    <select name="id_matkul" class="form-select" required>
+                    <select name="id_matkul" id="id_matkul" class="form-select" required>
                         <option value="">-- Pilih Mata Kuliah --</option>
                         <?php
                         $matkul_grouped_opt = [];
@@ -1111,7 +1123,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                         ?>
                             <optgroup label="📅 <?= htmlspecialchars($sem_name) ?>">
                                 <?php foreach ($mklist as $mk): ?>
-                                    <option value="<?= $mk['id'] ?>">[<?= htmlspecialchars($mk['kode_matkul']) ?>] <?= htmlspecialchars($mk['nama_matkul']) ?></option>
+                                    <option value="<?= $mk['id'] ?>" data-semester="<?= $mk['semester'] ?>">[<?= htmlspecialchars($mk['kode_matkul']) ?>] <?= htmlspecialchars($mk['nama_matkul']) ?></option>
                                 <?php endforeach; ?>
                             </optgroup>
                         <?php endforeach; ?>
@@ -1141,7 +1153,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                         $existing_classes = $pdo->query("SELECT DISTINCT kelas FROM users WHERE role = 'mahasiswa' AND kelas IS NOT NULL AND kelas != '' ORDER BY kelas ASC")->fetchAll(PDO::FETCH_COLUMN);
                         foreach ($existing_classes as $cls):
                         ?>
-                            <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.9rem; cursor: pointer; color: var(--text-main);">
+                            <label class="chk-kelas-label" data-class-name="<?= htmlspecialchars($cls) ?>" style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.9rem; cursor: pointer; color: var(--text-main);">
                                 <input type="checkbox" name="kelas_target[]" value="<?= htmlspecialchars($cls) ?>" class="chk-kelas" onchange="toggleClassOption(this)"> Kelas <?= htmlspecialchars($cls) ?>
                             </label>
                         <?php endforeach; ?>
@@ -1452,6 +1464,116 @@ function toggleClassOption(chk) {
         if (!anyChecked) {
             document.getElementById('chkAllKelas').checked = true;
         }
+    }
+}
+
+// Store original Mata Kuliah options grouped by optgroups
+let originalMatkulOptions = [];
+
+document.addEventListener("DOMContentLoaded", function() {
+    const selectEl = document.getElementById('id_matkul');
+    if (selectEl) {
+        const optgroups = selectEl.querySelectorAll('optgroup');
+        optgroups.forEach(group => {
+            const label = group.getAttribute('label');
+            const options = [];
+            group.querySelectorAll('option').forEach(opt => {
+                options.push({
+                    value: opt.value,
+                    text: opt.textContent,
+                    semester: opt.getAttribute('data-semester')
+                });
+            });
+            originalMatkulOptions.push({
+                label: label,
+                options: options
+            });
+        });
+    }
+});
+
+function getSemesterFromClass(className) {
+    const dotIdx = className.indexOf('.');
+    if (dotIdx !== -1 && dotIdx + 1 < className.length) {
+        const charAfterDot = className.charAt(dotIdx + 1);
+        if (charAfterDot >= '1' && charAfterDot <= '9') {
+            return charAfterDot;
+        }
+    }
+    return null;
+}
+
+function filterBySemester(semester) {
+    // 1. Update active button style
+    const buttons = document.querySelectorAll('.filter-btn');
+    buttons.forEach(btn => {
+        if (btn.getAttribute('data-semester') === semester) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+
+    // 2. Filter Mata Kuliah select dropdown
+    const selectEl = document.getElementById('id_matkul');
+    if (selectEl) {
+        // Clear all except the first option
+        selectEl.innerHTML = '<option value="">-- Pilih Mata Kuliah --</option>';
+
+        originalMatkulOptions.forEach(group => {
+            const filteredOptions = group.options.filter(opt => {
+                if (semester === 'all') return true;
+                return opt.semester === semester;
+            });
+
+            if (filteredOptions.length > 0) {
+                const optgroup = document.createElement('optgroup');
+                optgroup.setAttribute('label', group.label);
+                
+                filteredOptions.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt.value;
+                    option.textContent = opt.text;
+                    option.setAttribute('data-semester', opt.semester);
+                    optgroup.appendChild(option);
+                });
+
+                selectEl.appendChild(optgroup);
+            }
+        });
+    }
+
+    // 3. Filter Kelas Target Checkboxes
+    const classLabels = document.querySelectorAll('.chk-kelas-label');
+    classLabels.forEach(label => {
+        const checkbox = label.querySelector('.chk-kelas');
+        if (!checkbox) return;
+        
+        const className = checkbox.value;
+        const classSem = getSemesterFromClass(className);
+
+        if (semester === 'all') {
+            label.style.display = 'flex';
+        } else {
+            if (classSem === null) {
+                label.style.display = 'flex';
+            } else if (classSem === semester) {
+                label.style.display = 'flex';
+            } else {
+                label.style.display = 'none';
+                if (checkbox.checked) {
+                    checkbox.checked = false;
+                }
+            }
+        }
+    });
+
+    // Reset the "Semua Kelas" checkbox if all visible ones are unchecked
+    const anyChecked = Array.from(document.querySelectorAll('.chk-kelas')).some(el => el.checked);
+    if (!anyChecked) {
+        document.getElementById('chkAllKelas').checked = true;
+    } else {
+        document.getElementById('chkAllKelas').checked = false;
     }
 }
 </script>

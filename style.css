@@ -988,3 +988,37 @@ footer {
 @media (max-width: 400px) {
     .brand-text { font-size: 0.85rem; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
+
+/* =========================================================
+   SEMESTER FILTER FOR TASK CREATION
+   ========================================================= */
+.filter-btn-group {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+.filter-btn {
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    border: 1.5px solid var(--border-color);
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.filter-btn:hover {
+    background: var(--accent-primary-light);
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+.filter-btn.active {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: #FFFFFF;
+    box-shadow: 0 2px 6px rgba(11, 78, 162, 0.2);
+}
+
