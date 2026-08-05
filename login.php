@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - SIPT RM</title>
+    <title>Login - Sistem Informasi Pengumpulan Tugas Lab RM</title>
     <link rel="stylesheet" href="style.css">
     <style>
         .login-card-hero {
@@ -69,10 +69,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <!-- Hero Header -->
         <div class="login-card-hero">
             <div class="hero-logo">
-                <img src="https://raw.githubusercontent.com/MuzakkiSyah/laboratoriumrm/47ccb8aadc7a14211df38be5f26f4e45f75a0f20/LOGO%20LAB-06%20-%20Copy.png" alt="SIPT RM Logo" style="height: 60px; object-fit: contain;">
+                <img src="https://raw.githubusercontent.com/MuzakkiSyah/laboratoriumrm/47ccb8aadc7a14211df38be5f26f4e45f75a0f20/LOGO%20LAB-06%20-%20Copy.png" alt="Sistem Informasi Pengumpulan Tugas Lab RM Logo" style="height: 60px; object-fit: contain;">
             </div>
-            <h1 style="font-size: 1.6rem; margin-top: 0.5rem; line-height: 1.3;">SIPT RM</h1>
-            <p>Sistem Informasi Pengumpulan Tugas RM</p>
+            <h1 style="font-size: 1.6rem; margin-top: 0.5rem; line-height: 1.3;">Sistem Informasi Pengumpulan Tugas Lab RM</h1>
+            <p>Laboratorium Rekayasa Medis (Lab RM)</p>
         </div>
 
         <?php if (!empty($error)): ?>

@@ -557,7 +557,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Laboran - SIPT RM</title>
+    <title>Dashboard Laboran - Sistem Informasi Pengumpulan Tugas Lab RM</title>
     <link rel="stylesheet" href="style.css">
     <style>
         .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:2rem; }
@@ -583,8 +583,8 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
 <nav class="navbar">
     <div class="navbar-container">
         <span class="navbar-brand" style="display:flex; align-items:center; gap:0.5rem;">
-            <img src="https://raw.githubusercontent.com/MuzakkiSyah/laboratoriumrm/47ccb8aadc7a14211df38be5f26f4e45f75a0f20/LOGO%20LAB-06%20-%20Copy.png" alt="SIPT RM Logo" style="height: 32px; object-fit: contain;">
-            SIPT RM
+            <img src="https://raw.githubusercontent.com/MuzakkiSyah/laboratoriumrm/47ccb8aadc7a14211df38be5f26f4e45f75a0f20/LOGO%20LAB-06%20-%20Copy.png" alt="Sistem Informasi Pengumpulan Tugas Lab RM Logo" style="height: 32px; object-fit: contain;">
+            <span class="brand-text">Sistem Informasi Pengumpulan Tugas Lab RM</span>
         </span>
         <div class="navbar-user">
             <div class="user-info">
@@ -1263,7 +1263,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
 
 </div>
 
-<footer><p>SIPT RM &copy; 2026 — Sistem Informasi Pengumpulan Tugas RM</p></footer>
+<footer><p>Sistem Informasi Pengumpulan Tugas Lab RM &copy; 2026</p></footer>
 
 <script>
 function switchTab(name) {
