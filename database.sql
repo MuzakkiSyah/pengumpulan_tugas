@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `nama_lengkap` VARCHAR(100) NOT NULL,
   `nomor_induk` VARCHAR(50) UNIQUE NOT NULL, -- NIP untuk laboran, NIM untuk mahasiswa
   `role` ENUM('laboran', 'mahasiswa') NOT NULL,
+  `semester` TINYINT DEFAULT 1,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -27,6 +28,7 @@ CREATE TABLE IF NOT EXISTS `mata_kuliah` (
   `id_semester` INT NOT NULL,
   `kode_matkul` VARCHAR(20) NOT NULL,
   `nama_matkul` VARCHAR(100) NOT NULL,
+  `semester` TINYINT DEFAULT 1,
   `deskripsi` TEXT DEFAULT NULL,
   `dibuat_oleh` INT NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

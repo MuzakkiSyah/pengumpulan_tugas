@@ -55,6 +55,28 @@ try {
     }
 }
 
+// Dynamic database migration: add semester column to users table if not exists
+try {
+    $pdo->query("SELECT semester FROM users LIMIT 1");
+} catch (PDOException $e) {
+    try {
+        $pdo->exec("ALTER TABLE users ADD COLUMN semester TINYINT DEFAULT 1 AFTER role");
+    } catch (PDOException $ex) {
+        // Ignore errors
+    }
+}
+
+// Dynamic database migration: add semester column to mata_kuliah table if not exists
+try {
+    $pdo->query("SELECT semester FROM mata_kuliah LIMIT 1");
+} catch (PDOException $e) {
+    try {
+        $pdo->exec("ALTER TABLE mata_kuliah ADD COLUMN semester TINYINT DEFAULT 1 AFTER nama_matkul");
+    } catch (PDOException $ex) {
+        // Ignore errors
+    }
+}
+
 
 // Fungsi bantu untuk mengecek login
 function check_login($required_role = null) {

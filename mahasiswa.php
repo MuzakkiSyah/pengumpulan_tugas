@@ -3,6 +3,13 @@ require_once 'config.php';
 check_login('mahasiswa');
 
 $user_id = $_SESSION['user_id'];
+
+// Ambil data profil mahasiswa lengkap (termasuk semester)
+$stmt_profile = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+$stmt_profile->execute([$user_id]);
+$current_user = $stmt_profile->fetch();
+$student_semester = $current_user['semester'] ?? 1;
+
 $message = '';
 $message_type = '';
 
@@ -93,16 +100,17 @@ $semesters = $pdo->query("SELECT * FROM semesters WHERE status = 'aktif' ORDER B
 
 // Mata kuliah aktif (untuk filter)
 if ($filter_semester > 0) {
-    $stmt = $pdo->prepare("SELECT mk.* FROM mata_kuliah mk JOIN semesters s ON mk.id_semester = s.id WHERE mk.id_semester = ? AND s.status = 'aktif' ORDER BY mk.kode_matkul ASC");
-    $stmt->execute([$filter_semester]);
+    $stmt = $pdo->prepare("SELECT mk.* FROM mata_kuliah mk JOIN semesters s ON mk.id_semester = s.id WHERE mk.id_semester = ? AND mk.semester = ? AND s.status = 'aktif' ORDER BY mk.kode_matkul ASC");
+    $stmt->execute([$filter_semester, $student_semester]);
 } else {
-    $stmt = $pdo->query("SELECT mk.* FROM mata_kuliah mk JOIN semesters s ON mk.id_semester = s.id WHERE s.status = 'aktif' ORDER BY mk.kode_matkul ASC");
+    $stmt = $pdo->prepare("SELECT mk.* FROM mata_kuliah mk JOIN semesters s ON mk.id_semester = s.id WHERE mk.semester = ? AND s.status = 'aktif' ORDER BY mk.kode_matkul ASC");
+    $stmt->execute([$student_semester]);
 }
 $all_matkul = $stmt->fetchAll();
 
 // Bangun WHERE clause untuk tugas
-$where_clauses = ["s.status = 'aktif'"];
-$params = [$user_id];
+$where_clauses = ["s.status = 'aktif'", "mk.semester = ?"];
+$params = [$user_id, $student_semester];
 if ($filter_matkul > 0) {
     $where_clauses[] = "a.id_matkul = ?";
     $params[] = $filter_matkul;
@@ -168,7 +176,7 @@ foreach ($all_assignments as $a) { if ($a['sub_id']) $total_kumpul++; }
         <div class="navbar-user">
             <div class="user-info">
                 <div class="user-name"><?= htmlspecialchars($_SESSION['nama_lengkap']) ?></div>
-                <div class="user-role">Mahasiswa · NIM: <?= htmlspecialchars($_SESSION['nomor_induk']) ?></div>
+                <div class="user-role">Mahasiswa · NIM: <?= htmlspecialchars($_SESSION['nomor_induk']) ?> · Semester <?= $student_semester ?></div>
             </div>
             <a href="logout.php" class="btn btn-secondary btn-sm">Logout</a>
         </div>

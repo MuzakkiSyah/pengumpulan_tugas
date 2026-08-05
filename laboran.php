@@ -78,11 +78,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $id_semester = (int)$_POST['id_semester'];
         $kode_matkul = strtoupper(clean_input($_POST['kode_matkul']));
         $nama_matkul = clean_input($_POST['nama_matkul']);
+        $semester_level = (int)$_POST['semester_level'];
         $deskripsi   = clean_input($_POST['deskripsi_matkul']);
-        if (!empty($id_semester) && !empty($kode_matkul) && !empty($nama_matkul)) {
+        if (!empty($id_semester) && !empty($kode_matkul) && !empty($nama_matkul) && $semester_level >= 1 && $semester_level <= 6) {
             try {
-                $stmt = $pdo->prepare("INSERT INTO mata_kuliah (id_semester, kode_matkul, nama_matkul, deskripsi, dibuat_oleh) VALUES (?, ?, ?, ?, ?)");
-                $stmt->execute([$id_semester, $kode_matkul, $nama_matkul, $deskripsi, $user_id]);
+                $stmt = $pdo->prepare("INSERT INTO mata_kuliah (id_semester, kode_matkul, nama_matkul, semester, deskripsi, dibuat_oleh) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$id_semester, $kode_matkul, $nama_matkul, $semester_level, $deskripsi, $user_id]);
                 $message = "Mata kuliah $nama_matkul berhasil ditambahkan!";
                 $message_type = 'success';
             } catch (PDOException $e) {
@@ -94,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $message_type = 'error';
             }
         } else {
-            $message = 'Semester, kode, dan nama mata kuliah wajib diisi!';
+            $message = 'Semester, kode, nama mata kuliah, dan semester tingkat wajib diisi!';
             $message_type = 'error';
         }
     }
@@ -167,14 +168,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $nim   = clean_input($_POST['nim']);
         $uname = clean_input($_POST['username_mhs']);
         $pass  = clean_input($_POST['password_mhs']);
-        if (empty($nama) || empty($nim) || empty($uname) || empty($pass)) {
-            $message = 'Semua field mahasiswa wajib diisi!';
+        $semester = (int)$_POST['semester_mhs'];
+        if (empty($nama) || empty($nim) || empty($uname) || empty($pass) || $semester < 1 || $semester > 6) {
+            $message = 'Semua field mahasiswa dan semester tingkat wajib diisi!';
             $message_type = 'error';
         } else {
             try {
                 $hash = password_hash($pass, PASSWORD_BCRYPT);
-                $stmt = $pdo->prepare("INSERT INTO users (username, password, nama_lengkap, nomor_induk, role) VALUES (?, ?, ?, ?, 'mahasiswa')");
-                $stmt->execute([$uname, $hash, $nama, $nim]);
+                $stmt = $pdo->prepare("INSERT INTO users (username, password, nama_lengkap, nomor_induk, role, semester) VALUES (?, ?, ?, ?, 'mahasiswa', ?)");
+                $stmt->execute([$uname, $hash, $nama, $nim, $semester]);
                 $message = "Akun mahasiswa $nama berhasil dibuat!";
                 $message_type = 'success';
             } catch (PDOException $e) {
@@ -184,18 +186,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
     }
 
-    // --- Reset Password Mahasiswa ---
-    elseif ($_POST['action'] === 'reset_password') {
+    // --- Edit Mahasiswa & Reset Password ---
+    elseif ($_POST['action'] === 'edit_mahasiswa') {
         $mhs_id   = (int)$_POST['mhs_id'];
+        $semester = (int)$_POST['semester_mhs'];
         $new_pass = clean_input($_POST['new_password']);
-        if (empty($new_pass)) {
-            $message = 'Password baru tidak boleh kosong!';
-            $message_type = 'error';
+        
+        if ($mhs_id > 0 && $semester >= 1 && $semester <= 6) {
+            try {
+                if (!empty($new_pass)) {
+                    $hash = password_hash($new_pass, PASSWORD_BCRYPT);
+                    $stmt = $pdo->prepare("UPDATE users SET semester = ?, password = ? WHERE id = ? AND role = 'mahasiswa'");
+                    $stmt->execute([$semester, $hash, $mhs_id]);
+                    $message = 'Data mahasiswa dan password berhasil diperbarui!';
+                } else {
+                    $stmt = $pdo->prepare("UPDATE users SET semester = ? WHERE id = ? AND role = 'mahasiswa'");
+                    $stmt->execute([$semester, $mhs_id]);
+                    $message = 'Semester mahasiswa berhasil diperbarui!';
+                }
+                $message_type = 'success';
+            } catch (PDOException $e) {
+                $message = 'Gagal memperbarui data mahasiswa: ' . $e->getMessage();
+                $message_type = 'error';
+            }
         } else {
-            $hash = password_hash($new_pass, PASSWORD_BCRYPT);
-            $pdo->prepare("UPDATE users SET password = ? WHERE id = ? AND role = 'mahasiswa'")->execute([$hash, $mhs_id]);
-            $message = 'Password berhasil direset!';
-            $message_type = 'success';
+            $message = 'Input data tidak valid!';
+            $message_type = 'error';
         }
     }
 
@@ -249,6 +265,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $nim   = trim($row[1] ?? '');
                     $uname = trim($row[2] ?? $nim); // default username = nim
                     $pass  = trim($row[3] ?? $nim); // default password = nim
+                    $semester = isset($row[4]) && trim($row[4]) !== '' ? (int)trim($row[4]) : 1;
+                    if ($semester < 1 || $semester > 6) $semester = 1;
 
                     if (empty($nama) || empty($nim)) {
                         $errors[] = "Baris $row_num: nama/NIM kosong.";
@@ -260,8 +278,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
                     try {
                         $hash = password_hash($pass, PASSWORD_BCRYPT);
-                        $stmt = $pdo->prepare("INSERT INTO users (username, password, nama_lengkap, nomor_induk, role) VALUES (?, ?, ?, ?, 'mahasiswa')");
-                        $stmt->execute([$uname, $hash, $nama, $nim]);
+                        $stmt = $pdo->prepare("INSERT INTO users (username, password, nama_lengkap, nomor_induk, role, semester) VALUES (?, ?, ?, ?, 'mahasiswa', ?)");
+                        $stmt->execute([$uname, $hash, $nama, $nim, $semester]);
                         $imported++;
                     } catch (PDOException $e) {
                         $errors[] = "Baris $row_num ($nama): username/NIM duplikat, dilewati.";
@@ -346,10 +364,10 @@ if (isset($_GET['download_template'])) {
     $out = fopen('php://output', 'w');
     // BOM untuk Excel agar karakter Indonesia terbaca
     fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
-    fputcsv($out, ['nama_lengkap', 'nim', 'username', 'password']);
-    fputcsv($out, ['Budi Santoso', '2024001', 'budi2024', '2024001']);
-    fputcsv($out, ['Siti Rahayu', '2024002', 'siti2024', '2024002']);
-    fputcsv($out, ['Ahmad Fauzi', '2024003', '', '']); // kosong = default nim
+    fputcsv($out, ['nama_lengkap', 'nim', 'username', 'password', 'semester']);
+    fputcsv($out, ['Budi Santoso', '2024001', 'budi2024', '2024001', '1']);
+    fputcsv($out, ['Siti Rahayu', '2024002', 'siti2024', '2024002', '2']);
+    fputcsv($out, ['Ahmad Fauzi', '2024003', '', '', '3']); // kosong = default nim
     fclose($out);
     exit();
 }
@@ -750,14 +768,25 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
             <?php else: ?>
             <form method="POST">
                 <input type="hidden" name="action" value="add_matkul">
-                <div class="form-row" style="margin-bottom:1rem;">
+                <div class="form-row-3" style="display:grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem; margin-bottom:1rem;">
                     <div class="form-group">
-                        <label class="form-label">Semester</label>
+                        <label class="form-label">Semester Akademik (Periode)</label>
                         <select name="id_semester" class="form-select" required>
                             <option value="">-- Pilih Semester --</option>
                             <?php foreach ($semesters as $sem): ?>
                                 <option value="<?= $sem['id'] ?>"><?= htmlspecialchars($sem['nama_semester']) ?></option>
                             <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Tingkat Semester</label>
+                        <select name="semester_level" class="form-select" required>
+                            <option value="1">Semester 1</option>
+                            <option value="2">Semester 2</option>
+                            <option value="3">Semester 3</option>
+                            <option value="4">Semester 4</option>
+                            <option value="5">Semester 5</option>
+                            <option value="6">Semester 6</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -806,6 +835,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                     <div class="matkul-list-item">
                         <div class="matkul-list-info">
                             <span class="matkul-code"><?= htmlspecialchars($mk['kode_matkul']) ?></span>
+                            <span class="badge badge-info" style="font-size:.7rem; padding:.1rem .4rem; text-transform:none; border-radius:4px; font-weight:normal;">Semester <?= $mk['semester'] ?></span>
                             <div>
                                 <div style="font-weight:600;font-size:.95rem;"><?= htmlspecialchars($mk['nama_matkul']) ?></div>
                                 <?php if ($mk['deskripsi']): ?>
@@ -980,7 +1010,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                         <input type="text" name="nim" class="form-input" placeholder="Nomor Induk Mahasiswa" required>
                     </div>
                 </div>
-                <div class="form-row">
+                <div class="form-row-3" style="display:grid; grid-template-columns: 2fr 2fr 1fr; gap: 1rem; margin-bottom:1rem;">
                     <div class="form-group">
                         <label class="form-label">Username</label>
                         <input type="text" name="username_mhs" class="form-input" placeholder="Username untuk login" required>
@@ -988,6 +1018,17 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                     <div class="form-group">
                         <label class="form-label">Password</label>
                         <input type="text" name="password_mhs" class="form-input" placeholder="Password awal (bisa diubah nanti)" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Semester</label>
+                        <select name="semester_mhs" class="form-select" required>
+                            <option value="1">Semester 1</option>
+                            <option value="2">Semester 2</option>
+                            <option value="3">Semester 3</option>
+                            <option value="4">Semester 4</option>
+                            <option value="5">Semester 5</option>
+                            <option value="6">Semester 6</option>
+                        </select>
                     </div>
                 </div>
                 <button type="submit" class="btn btn-primary">➕ Tambah Mahasiswa</button>
@@ -1027,6 +1068,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                             <th>Nama Lengkap</th>
                             <th>NIM</th>
                             <th>Username</th>
+                            <th>Semester</th>
                             <th>Total Kumpul</th>
                             <th>Aksi</th>
                         </tr>
@@ -1038,11 +1080,12 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                             <td style="font-weight:500; color:var(--text-main);"><?= htmlspecialchars($mhs['nama_lengkap']) ?></td>
                             <td><code style="background:var(--bg-input); padding:.15rem .5rem; border-radius:4px; font-size:.85rem;"><?= htmlspecialchars($mhs['nomor_induk']) ?></code></td>
                             <td><?= htmlspecialchars($mhs['username']) ?></td>
+                            <td>Semester <?= htmlspecialchars($mhs['semester'] ?? 1) ?></td>
                             <td><span class="badge badge-info"><?= $mhs['total_kumpul'] ?> file</span></td>
                             <td>
                                 <div style="display:flex; gap:.4rem; flex-wrap:wrap;">
-                                    <!-- Reset Password -->
-                                    <button class="btn btn-secondary btn-sm" onclick="showResetForm(<?= $mhs['id'] ?>, '<?= htmlspecialchars($mhs['nama_lengkap']) ?>')">🔑 Reset</button>
+                                    <!-- Edit -->
+                                    <button class="btn btn-secondary btn-sm" onclick="showResetForm(<?= $mhs['id'] ?>, '<?= htmlspecialchars($mhs['nama_lengkap']) ?>', <?= $mhs['semester'] ?? 1 ?>)">📝 Edit</button>
                                     <!-- Hapus -->
                                     <form method="POST" onsubmit="return confirm('Hapus akun <?= htmlspecialchars(addslashes($mhs['nama_lengkap'])) ?>? Semua file tugasnya ikut terhapus!')">
                                         <input type="hidden" name="action" value="delete_mahasiswa">
@@ -1059,20 +1102,31 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
             <p style="font-size:.82rem; color:var(--text-muted); margin-top:.75rem;">Total: <?= count($daftar_mhs) ?> mahasiswa terdaftar</p>
         <?php endif; ?>
 
-        <!-- Modal Reset Password (hidden by default) -->
+        <!-- Modal Edit Mahasiswa (hidden by default) -->
         <div id="resetModal" style="display:none; position:fixed; inset:0; background:rgba(11,78,162,.15); backdrop-filter:blur(4px); z-index:300; justify-content:center; align-items:center;">
             <div style="background:#fff; border:1.5px solid var(--border-color); border-radius:16px; padding:2rem; width:100%; max-width:420px; box-shadow:var(--shadow-lg);">
-                <h4 style="margin-bottom:1.25rem;">🔑 Reset Password Mahasiswa</h4>
+                <h4 style="margin-bottom:1.25rem;">📝 Edit Data & Reset Password Mahasiswa</h4>
                 <p id="resetMhsName" style="color:var(--text-muted); font-size:.9rem; margin-bottom:1.25rem;"></p>
                 <form method="POST">
-                    <input type="hidden" name="action" value="reset_password">
+                    <input type="hidden" name="action" value="edit_mahasiswa">
                     <input type="hidden" name="mhs_id" id="resetMhsId">
-                    <div class="form-group">
-                        <label class="form-label">Password Baru</label>
-                        <input type="text" name="new_password" class="form-input" placeholder="Masukkan password baru" required>
+                    <div class="form-group" style="margin-bottom:1rem;">
+                        <label class="form-label">SemesterTingkat</label>
+                        <select name="semester_mhs" id="editMhsSemester" class="form-select" required>
+                            <option value="1">Semester 1</option>
+                            <option value="2">Semester 2</option>
+                            <option value="3">Semester 3</option>
+                            <option value="4">Semester 4</option>
+                            <option value="5">Semester 5</option>
+                            <option value="6">Semester 6</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:1.25rem;">
+                        <label class="form-label">Reset Password Baru (Opsional)</label>
+                        <input type="text" name="new_password" class="form-input" placeholder="Kosongkan jika tidak ingin mereset password">
                     </div>
                     <div style="display:flex; gap:.75rem;">
-                        <button type="submit" class="btn btn-primary">✅ Simpan</button>
+                        <button type="submit" class="btn btn-primary">✅ Simpan Perubahan</button>
                         <button type="button" class="btn btn-secondary" onclick="closeResetModal()">Batal</button>
                     </div>
                 </form>
@@ -1104,7 +1158,7 @@ function closeDetail() {
         switchTab('matkul');
     <?php elseif ($_POST['action'] === 'add_assignment'): ?>
         switchTab('buat-tugas');
-    <?php elseif (in_array($_POST['action'], ['add_mahasiswa','delete_mahasiswa','reset_password','import_csv'])): ?>
+    <?php elseif (in_array($_POST['action'], ['add_mahasiswa','delete_mahasiswa','edit_mahasiswa','reset_password','import_csv'])): ?>
         switchTab('akun');
     <?php endif; ?>
 <?php endif; ?>
@@ -1117,9 +1171,10 @@ function filterMhs() {
     });
 }
 
-function showResetForm(id, nama) {
+function showResetForm(id, nama, semester) {
     document.getElementById('resetMhsId').value = id;
     document.getElementById('resetMhsName').textContent = 'Mahasiswa: ' + nama;
+    document.getElementById('editMhsSemester').value = semester;
     const modal = document.getElementById('resetModal');
     modal.style.display = 'flex';
 }
