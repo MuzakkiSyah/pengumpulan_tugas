@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <img src="https://raw.githubusercontent.com/MuzakkiSyah/laboratoriumrm/47ccb8aadc7a14211df38be5f26f4e45f75a0f20/LOGO%20LAB-06%20-%20Copy.png" alt="Sistem Informasi Pengumpulan Tugas Lab RM Logo" style="height: 60px; object-fit: contain;">
             </div>
             <h1 style="font-size: 1.6rem; margin-top: 0.5rem; line-height: 1.3;">Sistem Informasi Pengumpulan Tugas Lab RM</h1>
-            <p>Laboratorium Rekayasa Medis (Lab RM)</p>
+            <p>Laboratorium Rekam Medis Udinus</p>
         </div>
 
         <?php if (!empty($error)): ?>
