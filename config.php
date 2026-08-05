@@ -134,4 +134,30 @@ function format_tanggal($datetime) {
     
     return "$day_name, $day $month_name $year - Pukul $hour_minute WIB";
 }
+
+// Fungsi bantu untuk mendeteksi delimiter CSV
+function detect_csv_delimiter($filepath) {
+    $handle = fopen($filepath, 'r');
+    if (!$handle) return ',';
+    
+    $first_line = fgets($handle);
+    fclose($handle);
+    
+    if (!$first_line) return ',';
+    
+    // Hapus BOM jika ada agar tidak mengganggu deteksi
+    if (substr($first_line, 0, 3) === "\xEF\xBB\xBF") {
+        $first_line = substr($first_line, 3);
+    }
+    
+    $delimiters = [',' => 0, ';' => 0, "\t" => 0];
+    foreach ($delimiters as $del => &$count) {
+        $count = substr_count($first_line, $del);
+    }
+    
+    arsort($delimiters);
+    $detected = key($delimiters);
+    
+    return $delimiters[$detected] > 0 ? $detected : ',';
+}
 ?>
