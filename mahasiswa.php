@@ -109,12 +109,13 @@ $filter_matkul   = isset($_GET['matkul'])   ? (int)$_GET['matkul']   : 0;
 $semesters = $pdo->query("SELECT * FROM semesters WHERE status = 'aktif' ORDER BY created_at DESC")->fetchAll();
 
 // Mata kuliah aktif (untuk filter)
+$prodi_filter = $current_user['prodi'] ?? 'D3 RMIK';
 if ($filter_semester > 0) {
-    $stmt = $pdo->prepare("SELECT mk.* FROM mata_kuliah mk JOIN semesters s ON mk.id_semester = s.id WHERE mk.id_semester = ? AND mk.semester = ? AND s.status = 'aktif' ORDER BY mk.kode_matkul ASC");
-    $stmt->execute([$filter_semester, $student_semester]);
+    $stmt = $pdo->prepare("SELECT mk.* FROM mata_kuliah mk JOIN semesters s ON mk.id_semester = s.id WHERE mk.id_semester = ? AND mk.semester = ? AND mk.prodi = ? AND s.status = 'aktif' ORDER BY mk.kode_matkul ASC");
+    $stmt->execute([$filter_semester, $student_semester, $prodi_filter]);
 } else {
-    $stmt = $pdo->prepare("SELECT mk.* FROM mata_kuliah mk JOIN semesters s ON mk.id_semester = s.id WHERE mk.semester = ? AND s.status = 'aktif' ORDER BY mk.kode_matkul ASC");
-    $stmt->execute([$student_semester]);
+    $stmt = $pdo->prepare("SELECT mk.* FROM mata_kuliah mk JOIN semesters s ON mk.id_semester = s.id WHERE mk.semester = ? AND mk.prodi = ? AND s.status = 'aktif' ORDER BY mk.kode_matkul ASC");
+    $stmt->execute([$student_semester, $prodi_filter]);
 }
 $all_matkul = $stmt->fetchAll();
 

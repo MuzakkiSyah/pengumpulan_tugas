@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS `mata_kuliah` (
   `kode_matkul` VARCHAR(20) NOT NULL,
   `nama_matkul` VARCHAR(100) NOT NULL,
   `semester` TINYINT DEFAULT 1,
+  `prodi` VARCHAR(50) DEFAULT 'D3 RMIK',
   `deskripsi` TEXT DEFAULT NULL,
   `dibuat_oleh` INT NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

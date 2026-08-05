@@ -88,14 +88,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     // --- Tambah Mata Kuliah ---
     elseif ($_POST['action'] === 'add_matkul') {
         $id_semester = (int)$_POST['id_semester'];
+        $prodi       = clean_input($_POST['prodi_matkul'] ?? 'D3 RMIK');
         $kode_matkul = strtoupper(clean_input($_POST['kode_matkul']));
         $nama_matkul = clean_input($_POST['nama_matkul']);
         $semester_level = (int)$_POST['semester_level'];
         $deskripsi   = null;
         if (!empty($id_semester) && !empty($kode_matkul) && !empty($nama_matkul) && $semester_level >= 1 && $semester_level <= 6) {
             try {
-                $stmt = $pdo->prepare("INSERT INTO mata_kuliah (id_semester, kode_matkul, nama_matkul, semester, deskripsi, dibuat_oleh) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$id_semester, $kode_matkul, $nama_matkul, $semester_level, $deskripsi, $user_id]);
+                $stmt = $pdo->prepare("INSERT INTO mata_kuliah (id_semester, kode_matkul, nama_matkul, semester, prodi, deskripsi, dibuat_oleh) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$id_semester, $kode_matkul, $nama_matkul, $semester_level, $prodi, $deskripsi, $user_id]);
                 $message = "Mata kuliah $nama_matkul berhasil ditambahkan!";
                 $message_type = 'success';
             } catch (PDOException $e) {
@@ -377,8 +378,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         $kode_matkul        = strtoupper(trim($row[0]));
                         $nama_matkul        = trim($row[1] ?? '');
                         $semester_akademik  = trim($row[2] ?? '');
-                        $tingkat_semester   = isset($row[3]) && trim($row[3]) !== '' ? (int)trim($row[3]) : 1;
+                        $prodi_excel        = isset($row[3]) ? trim($row[3]) : '';
+                        $tingkat_semester   = isset($row[4]) && trim($row[4]) !== '' ? (int)trim($row[4]) : 1;
                         $deskripsi          = null; // Deskripsi dihilangkan
+
+                        // Determine prodi from excel or auto-detect based on kode_matkul prefix
+                        $prodi = 'D3 RMIK';
+                        if (!empty($prodi_excel)) {
+                            if (stripos($prodi_excel, 'D4') !== false || stripos($prodi_excel, 'D13') !== false) {
+                                $prodi = 'D4 MIK';
+                            } else {
+                                $prodi = 'D3 RMIK';
+                            }
+                        } else {
+                            if (stripos($kode_matkul, 'D22') === 0) {
+                                $prodi = 'D3 RMIK';
+                            } elseif (stripos($kode_matkul, 'D13') === 0) {
+                                $prodi = 'D4 MIK';
+                            }
+                        }
 
                         if (empty($kode_matkul) || empty($nama_matkul) || empty($semester_akademik)) {
                             $errors[] = "Baris $row_num: Kode, Nama, atau Semester kosong.";
@@ -403,8 +421,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             }
 
                             // 2. Insert mata kuliah
-                            $stmt = $pdo->prepare("INSERT INTO mata_kuliah (id_semester, kode_matkul, nama_matkul, semester, deskripsi, dibuat_oleh) VALUES (?, ?, ?, ?, ?, ?)");
-                            $stmt->execute([$id_semester, $kode_matkul, $nama_matkul, $tingkat_semester, $deskripsi, $user_id]);
+                            $stmt = $pdo->prepare("INSERT INTO mata_kuliah (id_semester, kode_matkul, nama_matkul, semester, prodi, deskripsi, dibuat_oleh) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                            $stmt->execute([$id_semester, $kode_matkul, $nama_matkul, $tingkat_semester, $prodi, $deskripsi, $user_id]);
                             $imported++;
                         } catch (PDOException $e) {
                             if (isset($e->errorInfo[1]) && $e->errorInfo[1] == 1062) {
@@ -583,10 +601,10 @@ if (isset($_GET['download_template'])) {
 if (isset($_GET['download_template_matkul'])) {
     check_login('laboran');
     $data = [
-        ['kode_matkul', 'nama_matkul', 'semester_akademik', 'tingkat_semester'],
-        ['CS101', 'Pengantar Teknologi Informasi', 'Ganjil 2026/2027', 1],
-        ['CS201', 'Algoritma & Pemrograman', 'Ganjil 2026/2027', 2],
-        ['CS302', 'Basis Data', 'Genap 2026/2027', 3]
+        ['kode_matkul', 'nama_matkul', 'semester_akademik', 'program_studi', 'tingkat_semester'],
+        ['D22.101', 'Pengantar Teknologi Informasi', 'Ganjil 2026/2027', 'D3 RMIK', 1],
+        ['D13.201', 'Algoritma & Pemrograman', 'Ganjil 2026/2027', 'D4 MIK', 2],
+        ['D22.302', 'Basis Data', 'Genap 2026/2027', 'D3 RMIK', 3]
     ];
     \Shuchkin\SimpleXLSXGen::fromArray($data)->downloadAs('template_mata_kuliah.xlsx');
     exit();
@@ -1083,7 +1101,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
             <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem;">
                 <div>
                     <h3 style="font-size:1.2rem; margin-bottom:.3rem;">📤 Import Mata Kuliah via Excel</h3>
-                    <p style="font-size:.88rem; color:var(--text-muted);">Upload file Excel berisi data mata kuliah. Kolom: <code style="background:var(--bg-input); padding:.1rem .4rem; border-radius:4px;">kode_matkul, nama_matkul, semester_akademik, tingkat_semester</code></p>
+                    <p style="font-size:.88rem; color:var(--text-muted);">Upload file Excel berisi data mata kuliah. Kolom: <code style="background:var(--bg-input); padding:.1rem .4rem; border-radius:4px;">kode_matkul, nama_matkul, semester_akademik, program_studi, tingkat_semester</code></p>
                 </div>
                 <a href="laboran.php?download_template_matkul=1" class="btn btn-secondary btn-sm" style="white-space:nowrap;">
                     ⬇ Unduh Template Excel
@@ -1114,7 +1132,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
             <?php else: ?>
             <form method="POST">
                 <input type="hidden" name="action" value="add_matkul">
-                <div class="form-row-3" style="display:grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem; margin-bottom:1rem;">
+                <div class="form-row-4" style="display:grid; grid-template-columns: 1.5fr 1.5fr 1fr 1fr; gap: 1rem; margin-bottom:1rem;">
                     <div class="form-group">
                         <label class="form-label">Semester Akademik (Periode)</label>
                         <select name="id_semester" class="form-select" required>
@@ -1122,6 +1140,13 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                             <?php foreach ($semesters as $sem): ?>
                                 <option value="<?= $sem['id'] ?>"><?= htmlspecialchars($sem['nama_semester']) ?></option>
                             <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Program Studi</label>
+                        <select name="prodi_matkul" class="form-select" required>
+                            <option value="D3 RMIK">D3 RMIK (D22)</option>
+                            <option value="D4 MIK">D4 MIK (D13)</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -1205,6 +1230,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                     <div class="matkul-list-item">
                         <div class="matkul-list-info">
                             <span class="matkul-code"><?= htmlspecialchars($mk['kode_matkul']) ?></span>
+                            <span class="badge badge-inactive" style="font-size:.7rem; padding:.1rem .4rem; text-transform:none; border-radius:4px; font-weight:normal; background:var(--bg-input); border:1px solid var(--border-color); color:var(--text-muted);"><?= htmlspecialchars($mk['prodi'] ?? 'D3 RMIK') ?></span>
                             <span class="badge badge-info" style="font-size:.7rem; padding:.1rem .4rem; text-transform:none; border-radius:4px; font-weight:normal;">Semester <?= $mk['semester'] ?></span>
                             <div>
                                 <div style="font-weight:600;font-size:.95rem;"><?= htmlspecialchars($mk['nama_matkul']) ?></div>
@@ -1303,7 +1329,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                 </div>
                 <div class="form-group">
                     <label class="form-label">Mata Kuliah</label>
-                    <select name="id_matkul" id="id_matkul" class="form-select" required>
+                    <select name="id_matkul" id="id_matkul" class="form-select" required onchange="filterTargetKelasByMatkul(this); autoSelectProdiTarget(this)">
                         <option value="">-- Pilih Mata Kuliah --</option>
                         <?php
                         $matkul_grouped_opt = [];
@@ -1314,7 +1340,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                         ?>
                             <optgroup label="📅 <?= htmlspecialchars($sem_name) ?>">
                                 <?php foreach ($mklist as $mk): ?>
-                                    <option value="<?= $mk['id'] ?>" data-semester="<?= $mk['semester'] ?>">[<?= htmlspecialchars($mk['kode_matkul']) ?>] <?= htmlspecialchars($mk['nama_matkul']) ?></option>
+                                    <option value="<?= $mk['id'] ?>" data-semester="<?= $mk['semester'] ?>" data-prodi="<?= htmlspecialchars($mk['prodi'] ?? 'D3 RMIK') ?>">[<?= htmlspecialchars($mk['kode_matkul']) ?>] <?= htmlspecialchars($mk['nama_matkul']) ?> (<?= htmlspecialchars($mk['prodi'] ?? 'D3 RMIK') ?>)</option>
                                 <?php endforeach; ?>
                             </optgroup>
                         <?php endforeach; ?>
@@ -1815,6 +1841,16 @@ function showStaffForm(id, nama, npp, jabatan) {
 
 function closeStaffModal() {
     document.getElementById('staffModal').style.display = 'none';
+}
+
+function autoSelectProdiTarget(selectEl) {
+    const selectedOption = selectEl.options[selectEl.selectedIndex];
+    if (!selectedOption) return;
+    const prodi = selectedOption.getAttribute('data-prodi');
+    const prodiTargetSelect = document.getElementsByName('prodi_target')[0];
+    if (prodiTargetSelect && prodi) {
+        prodiTargetSelect.value = prodi;
+    }
 }
 
 function filterSubmissionsByClass(cls) {

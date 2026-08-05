@@ -91,6 +91,19 @@ try {
         // Ignore errors
     }
 }
+// Dynamic database migration: add prodi column to mata_kuliah table if not exists
+try {
+    $pdo->query("SELECT prodi FROM mata_kuliah LIMIT 1");
+} catch (PDOException $e) {
+    try {
+        $pdo->exec("ALTER TABLE mata_kuliah ADD COLUMN prodi VARCHAR(50) DEFAULT 'D3 RMIK' AFTER semester");
+        $pdo->exec("UPDATE mata_kuliah SET prodi = 'D3 RMIK' WHERE kode_matkul LIKE 'D22%'");
+        $pdo->exec("UPDATE mata_kuliah SET prodi = 'D4 MIK' WHERE kode_matkul LIKE 'D13%'");
+    } catch (PDOException $ex) {
+        // Ignore errors
+    }
+}
+
 
 // Dynamic database migration: add kelas column to assignments table if not exists
 try {
