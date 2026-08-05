@@ -246,6 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $message = 'Hanya file CSV (.csv) yang didukung!';
                 $message_type = 'error';
             } else {
+                ini_set('auto_detect_line_endings', true);
                 $handle = fopen($file['tmp_name'], 'r');
                 $imported = 0;
                 $skipped  = 0;
@@ -253,6 +254,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $row_num  = 0;
 
                 while (($row = fgetcsv($handle, 1000, ',')) !== false) {
+                    if (count($row) < 3 && isset($row[0])) {
+                        if (strpos($row[0], ';') !== false) {
+                            $row = str_getcsv($row[0], ';');
+                        } elseif (strpos($row[0], ',') !== false) {
+                            $row = str_getcsv($row[0], ',');
+                        }
+                    }
                     $row_num++;
                     // Skip header row
                     if ($row_num === 1) {
@@ -310,6 +318,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $message = 'Hanya file CSV (.csv) yang didukung!';
                 $message_type = 'error';
             } else {
+                ini_set('auto_detect_line_endings', true);
                 $handle = fopen($file['tmp_name'], 'r');
                 $imported = 0;
                 $skipped  = 0;
@@ -317,6 +326,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $row_num  = 0;
 
                 while (($row = fgetcsv($handle, 1000, ',')) !== false) {
+                    if (count($row) < 3 && isset($row[0])) {
+                        if (strpos($row[0], ';') !== false) {
+                            $row = str_getcsv($row[0], ';');
+                        } elseif (strpos($row[0], ',') !== false) {
+                            $row = str_getcsv($row[0], ',');
+                        }
+                    }
                     $row_num++;
                     // Skip header row
                     if ($row_num === 1) {
