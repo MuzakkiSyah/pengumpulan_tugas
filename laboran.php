@@ -3,6 +3,13 @@ require_once 'config.php';
 check_login('laboran');
 
 $user_id = $_SESSION['user_id'];
+
+// Ambil data profil laboran/staff lengkap
+$stmt_profile = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+$stmt_profile->execute([$user_id]);
+$current_user = $stmt_profile->fetch();
+$current_jabatan = $current_user['jabatan'] ?? 'laboran';
+
 $message = '';
 $message_type = '';
 $flash_tab = '';
@@ -21,8 +28,13 @@ if (isset($_SESSION['flash_message'])) {
 // =====================================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
+    // Validasi Akses Asisten Laboran (Hanya boleh add_assignment)
+    if ($current_jabatan === 'asisten_laboran' && $_POST['action'] !== 'add_assignment') {
+        $message = 'Akses ditolak! Asisten Laboran hanya diizinkan untuk membuat tugas.';
+        $message_type = 'error';
+    }
     // --- Tambah Semester ---
-    if ($_POST['action'] === 'add_semester') {
+    elseif ($_POST['action'] === 'add_semester') {
         $nama_semester = clean_input($_POST['nama_semester']);
         $status = clean_input($_POST['status']);
         if (!empty($nama_semester)) {
@@ -433,6 +445,82 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
     }
 
+    // --- Tambah Staff Baru ---
+    elseif ($_POST['action'] === 'add_staff') {
+        $nama  = clean_input($_POST['nama_lengkap']);
+        $npp   = clean_input($_POST['nomor_induk']);
+        $uname = clean_input($_POST['username_staff']);
+        $pass  = clean_input($_POST['password_staff']);
+        $jabatan_post = clean_input($_POST['jabatan']);
+        
+        if (empty($nama) || empty($npp) || empty($uname) || empty($pass) || empty($jabatan_post)) {
+            $message = 'Semua field staff wajib diisi!';
+            $message_type = 'error';
+        } elseif (!in_array($jabatan_post, ['asisten_laboran', 'laboran', 'kepala_laboratorium'])) {
+            $message = 'Jabatan tidak valid!';
+            $message_type = 'error';
+        } else {
+            try {
+                $hash = password_hash($pass, PASSWORD_BCRYPT);
+                $stmt = $pdo->prepare("INSERT INTO users (username, password, nama_lengkap, nomor_induk, role, jabatan) VALUES (?, ?, ?, ?, 'laboran', ?)");
+                $stmt->execute([$uname, $hash, $nama, $npp, $jabatan_post]);
+                $message = "Staff $nama berhasil ditambahkan!";
+                $message_type = 'success';
+            } catch (PDOException $e) {
+                $message = 'Username atau NPP sudah terdaftar!';
+                $message_type = 'error';
+            }
+        }
+    }
+
+    // --- Edit Staff & Reset Password ---
+    elseif ($_POST['action'] === 'edit_staff') {
+        $staff_id = (int)$_POST['staff_id'];
+        $nama     = clean_input($_POST['nama_lengkap']);
+        $npp      = clean_input($_POST['nomor_induk']);
+        $jabatan_post = clean_input($_POST['jabatan']);
+        $new_pass = clean_input($_POST['new_password']);
+        
+        if ($staff_id > 0 && !empty($nama) && !empty($npp) && in_array($jabatan_post, ['asisten_laboran', 'laboran', 'kepala_laboratorium'])) {
+            try {
+                if (!empty($new_pass)) {
+                    $hash = password_hash($new_pass, PASSWORD_BCRYPT);
+                    $stmt = $pdo->prepare("UPDATE users SET nama_lengkap = ?, nomor_induk = ?, jabatan = ?, password = ? WHERE id = ? AND role = 'laboran'");
+                    $stmt->execute([$nama, $npp, $jabatan_post, $hash, $staff_id]);
+                } else {
+                    $stmt = $pdo->prepare("UPDATE users SET nama_lengkap = ?, nomor_induk = ?, jabatan = ? WHERE id = ? AND role = 'laboran'");
+                    $stmt->execute([$nama, $npp, $jabatan_post, $staff_id]);
+                }
+                $message = 'Data staff berhasil diperbarui!';
+                $message_type = 'success';
+            } catch (PDOException $e) {
+                $message = 'Gagal memperbarui data staff: ' . $e->getMessage();
+                $message_type = 'error';
+            }
+        } else {
+            $message = 'Input data tidak valid!';
+            $message_type = 'error';
+        }
+    }
+
+    // --- Hapus Staff ---
+    elseif ($_POST['action'] === 'delete_staff') {
+        $staff_id = (int)$_POST['staff_id'];
+        if ($staff_id === (int)$user_id) {
+            $message = 'Anda tidak dapat menghapus akun Anda sendiri!';
+            $message_type = 'error';
+        } else {
+            try {
+                $pdo->prepare("DELETE FROM users WHERE id = ? AND role = 'laboran'")->execute([$staff_id]);
+                $message = 'Akun staff berhasil dihapus!';
+                $message_type = 'success';
+            } catch (PDOException $e) {
+                $message = 'Gagal menghapus staff: ' . $e->getMessage();
+                $message_type = 'error';
+            }
+        }
+    }
+
     // Post-Redirect-Get pattern to prevent form resubmission
     if ($message !== '') {
         $active_tab = 'tugas';
@@ -442,8 +530,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $active_tab = 'matkul';
         } elseif ($_POST['action'] === 'add_assignment') {
             $active_tab = 'buat-tugas';
-        } elseif (in_array($_POST['action'], ['add_mahasiswa','delete_mahasiswa','reset_password','import_excel'])) {
+        } elseif (in_array($_POST['action'], ['add_mahasiswa','delete_mahasiswa','edit_mahasiswa','reset_password','import_excel'])) {
             $active_tab = 'akun';
+        } elseif (in_array($_POST['action'], ['add_staff','edit_staff','delete_staff'])) {
+            $active_tab = 'staff';
         }
 
         $_SESSION['flash_message'] = $message;
@@ -604,7 +694,15 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
         <div class="navbar-user">
             <div class="user-info">
                 <div class="user-name"><?= htmlspecialchars($_SESSION['nama_lengkap']) ?></div>
-                <div class="user-role">Asisten Laboran</div>
+                <?php
+                $jabatan_labels = [
+                    'asisten_laboran'     => 'Asisten Laboran',
+                    'laboran'             => 'Laboran',
+                    'kepala_laboratorium' => 'Kepala Laboratorium'
+                ];
+                $display_jabatan = $jabatan_labels[$current_jabatan] ?? 'Staff';
+                ?>
+                <div class="user-role"><?= htmlspecialchars($display_jabatan) ?></div>
             </div>
             <a href="logout.php" class="btn btn-secondary btn-sm">Logout</a>
         </div>
@@ -736,6 +834,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                 <?php endif; ?>
                 
                 <!-- Grading Form Toggle -->
+                <?php if ($current_jabatan !== 'asisten_laboran'): ?>
                 <details style="margin-top:0.5rem; border-top:1px dashed var(--border-color); padding-top:0.5rem;">
                     <summary style="font-size:0.82rem; color:var(--accent-primary); cursor:pointer; font-weight:600; outline:none; user-select:none;">
                         📝 Atur Nilai & Komentar
@@ -768,6 +867,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                         <button type="submit" class="btn btn-primary btn-sm" style="width:100%; font-size:0.8rem; padding:0.45rem; border-radius:6px;">Simpan Nilai & Komentar</button>
                     </form>
                 </details>
+                <?php endif; ?>
             </div>
             <?php endforeach; ?>
         <?php endif; ?>
@@ -801,10 +901,17 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
     <!-- Tab Bar -->
     <div class="tab-bar">
         <button class="tab-btn active" id="tab-btn-tugas"      onclick="switchTab('tugas')">📋 Daftar Tugas</button>
-        <button class="tab-btn" id="tab-btn-matkul"     onclick="switchTab('matkul')">📁 Mata Kuliah</button>
-        <button class="tab-btn" id="tab-btn-semester"   onclick="switchTab('semester')">📅 Semester</button>
+        <?php if ($current_jabatan !== 'asisten_laboran'): ?>
+            <button class="tab-btn" id="tab-btn-matkul"     onclick="switchTab('matkul')">📁 Mata Kuliah</button>
+            <button class="tab-btn" id="tab-btn-semester"   onclick="switchTab('semester')">📅 Semester</button>
+        <?php endif; ?>
         <button class="tab-btn" id="tab-btn-buat-tugas" onclick="switchTab('buat-tugas')">➕ Buat Tugas</button>
-        <button class="tab-btn" id="tab-btn-akun"       onclick="switchTab('akun')">👥 Akun Mahasiswa</button>
+        <?php if ($current_jabatan !== 'asisten_laboran'): ?>
+            <button class="tab-btn" id="tab-btn-akun"       onclick="switchTab('akun')">👥 Akun Mahasiswa</button>
+        <?php endif; ?>
+        <?php if (in_array($current_jabatan, ['laboran', 'kepala_laboratorium'])): ?>
+            <button class="tab-btn" id="tab-btn-staff"      onclick="switchTab('staff')">👥 Role Access / Staff</button>
+        <?php endif; ?>
     </div>
 
     <!-- ============================================================ -->
@@ -921,11 +1028,13 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                         </div>
                         <div class="action-btns">
                             <a href="laboran.php?detail=<?= $a['id'] ?>&semester=<?= $filter_semester ?>&matkul=<?= $filter_matkul ?>" class="btn btn-secondary btn-sm" style="text-decoration:none;">👁 Detail</a>
+                            <?php if ($current_jabatan !== 'asisten_laboran'): ?>
                             <form method="POST" onsubmit="return confirm('Hapus tugas ini?')">
                                 <input type="hidden" name="action" value="delete_assignment">
                                 <input type="hidden" name="assignment_id" value="<?= $a['id'] ?>">
                                 <button type="submit" class="btn btn-danger btn-sm">🗑</button>
                             </form>
+                            <?php endif; ?>
                         </div>
                     </div>
                     <?php endforeach; ?>
@@ -938,6 +1047,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
     <!-- ============================================================ -->
     <!-- TAB: KELOLA MATA KULIAH -->
     <!-- ============================================================ -->
+    <?php if ($current_jabatan !== 'asisten_laboran'): ?>
     <div class="tab-content" id="tab-matkul">
 
         <!-- Import Excel Matkul -->
@@ -1083,10 +1193,12 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
             <?php endforeach; ?>
         <?php endif; ?>
     </div>
+    <?php endif; ?>
 
     <!-- ============================================================ -->
     <!-- TAB: KELOLA SEMESTER -->
     <!-- ============================================================ -->
+    <?php if ($current_jabatan !== 'asisten_laboran'): ?>
     <div class="tab-content" id="tab-semester">
         <div class="glass-panel" style="margin-bottom:2rem;">
             <h3 style="font-size:1.2rem;margin-bottom:1.5rem;">➕ Tambah Semester Baru</h3>
@@ -1135,6 +1247,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
             <?php endforeach; ?>
         <?php endif; ?>
     </div>
+    <?php endif; ?>
 
     <!-- ============================================================ -->
     <!-- TAB: BUAT TUGAS BARU -->
@@ -1222,6 +1335,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
     <!-- ============================================================ -->
     <!-- TAB: KELOLA AKUN MAHASISWA -->
     <!-- ============================================================ -->
+    <?php if ($current_jabatan !== 'asisten_laboran'): ?>
     <div class="tab-content" id="tab-akun">
 
         <!-- Import Excel -->
@@ -1434,6 +1548,142 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
             </div>
         </div>
     </div>
+    <?php endif; ?>
+
+    <!-- ============================================================ -->
+    <!-- TAB: KELOLA STAFF & ROLE ACCESS -->
+    <!-- ============================================================ -->
+    <?php if (in_array($current_jabatan, ['laboran', 'kepala_laboratorium'])): ?>
+    <div class="tab-content" id="tab-staff">
+        <!-- Form Tambah Staff -->
+        <div class="glass-panel" style="margin-bottom:2rem;">
+            <h3 style="font-size:1.2rem;margin-bottom:1.5rem;">👥 Tambah Staff Baru</h3>
+            <form method="POST">
+                <input type="hidden" name="action" value="add_staff">
+                <div class="form-row" style="margin-bottom:1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Nama Lengkap</label>
+                        <input type="text" name="nama_lengkap" class="form-input" placeholder="Nama Lengkap Staff" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">NPP (Nomor Pokok Pegawai)</label>
+                        <input type="text" name="nomor_induk" class="form-input" placeholder="NPP / NIP" required>
+                    </div>
+                </div>
+                <div class="form-row-3" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom:1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Username</label>
+                        <input type="text" name="username_staff" class="form-input" placeholder="Username untuk login" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input type="password" name="password_staff" class="form-input" placeholder="Password" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Jabatan (Akses)</label>
+                        <select name="jabatan" class="form-select" required>
+                            <option value="asisten_laboran">Asisten Laboran</option>
+                            <option value="laboran" selected>Laboran</option>
+                            <option value="kepala_laboratorium">Kepala Laboratorium</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">➕ Tambah Staff</button>
+            </form>
+        </div>
+
+        <!-- Daftar Staff -->
+        <h3 style="font-size:1.2rem; margin-bottom:1rem;">👥 Daftar Akun Staff / User</h3>
+        <?php
+        $daftar_staff = $pdo->query("
+            SELECT * FROM users 
+            WHERE role = 'laboran' 
+            ORDER BY FIELD(jabatan, 'kepala_laboratorium', 'laboran', 'asisten_laboran'), nama_lengkap ASC
+        ")->fetchAll();
+        ?>
+        <div class="table-wrapper">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Nama Lengkap</th>
+                        <th>NPP</th>
+                        <th>Username</th>
+                        <th>Jabatan (Role Access)</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($daftar_staff as $i => $st): ?>
+                    <tr>
+                        <td style="color:var(--text-muted);"><?= $i+1 ?></td>
+                        <td style="font-weight:600; color:var(--text-main);"><?= htmlspecialchars($st['nama_lengkap']) ?></td>
+                        <td><code style="background:var(--bg-input); padding:.15rem .5rem; border-radius:4px; font-size:.85rem;"><?= htmlspecialchars($st['nomor_induk']) ?></code></td>
+                        <td><?= htmlspecialchars($st['username']) ?></td>
+                        <td>
+                            <?php if ($st['jabatan'] === 'kepala_laboratorium'): ?>
+                                <span class="badge badge-gold">👑 Kepala Laboratorium</span>
+                            <?php elseif ($st['jabatan'] === 'laboran'): ?>
+                                <span class="badge badge-info">🛠️ Laboran</span>
+                            <?php else: ?>
+                                <span class="badge badge-inactive">📋 Asisten Laboran</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <div style="display:flex; gap:.4rem; flex-wrap:wrap;">
+                                <button class="btn btn-secondary btn-sm" onclick="showStaffForm(<?= $st['id'] ?>, '<?= htmlspecialchars(addslashes($st['nama_lengkap'])) ?>', '<?= htmlspecialchars(addslashes($st['nomor_induk'])) ?>', '<?= htmlspecialchars($st['jabatan']) ?>')">📝 Edit</button>
+                                <?php if ($st['id'] !== (int)$user_id): ?>
+                                    <form method="POST" onsubmit="return confirm('Hapus staff <?= htmlspecialchars(addslashes($st['nama_lengkap'])) ?>?')">
+                                        <input type="hidden" name="action" value="delete_staff">
+                                        <input type="hidden" name="staff_id" value="<?= $st['id'] ?>">
+                                        <button type="submit" class="btn btn-danger btn-sm">🗑</button>
+                                    </form>
+                                <?php endif; ?>
+                            </div>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Modal Edit Staff (hidden by default) -->
+        <div id="staffModal" style="display:none; position:fixed; inset:0; background:rgba(11,78,162,.15); backdrop-filter:blur(4px); z-index:300; justify-content:center; align-items:center;">
+            <div style="background:#fff; border:1.5px solid var(--border-color); border-radius:16px; padding:2rem; width:100%; max-width:420px; box-shadow:var(--shadow-lg);">
+                <h4 style="margin-bottom:1.25rem;">📝 Edit Data & Reset Password Staff</h4>
+                <p id="editStaffName" style="color:var(--text-muted); font-size:.9rem; margin-bottom:1.25rem;"></p>
+                <form method="POST">
+                    <input type="hidden" name="action" value="edit_staff">
+                    <input type="hidden" name="staff_id" id="editStaffId">
+                    <div class="form-group" style="margin-bottom:1rem;">
+                        <label class="form-label">Nama Lengkap</label>
+                        <input type="text" name="nama_lengkap" id="editStaffFullName" class="form-input" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom:1rem;">
+                        <label class="form-label">NPP</label>
+                        <input type="text" name="nomor_induk" id="editStaffNpp" class="form-input" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom:1rem;">
+                        <label class="form-label">Jabatan (Akses)</label>
+                        <select name="jabatan" id="editStaffJabatan" class="form-select" required>
+                            <option value="asisten_laboran">Asisten Laboran</option>
+                            <option value="laboran">Laboran</option>
+                            <option value="kepala_laboratorium">Kepala Laboratorium</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:1.25rem;">
+                        <label class="form-label">Reset Password Baru (Opsional)</label>
+                        <input type="text" name="new_password" class="form-input" placeholder="Kosongkan jika tidak ingin mereset password">
+                    </div>
+                    <div style="display:flex; gap:.75rem;">
+                        <button type="submit" class="btn btn-primary">✅ Simpan Perubahan</button>
+                        <button type="button" class="btn btn-secondary" onclick="closeStaffModal()">Batal</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 
 </div>
 
@@ -1463,6 +1713,8 @@ function closeDetail() {
         switchTab('buat-tugas');
     <?php elseif (in_array($_POST['action'], ['add_mahasiswa','delete_mahasiswa','edit_mahasiswa','reset_password','import_excel'])): ?>
         switchTab('akun');
+    <?php elseif (in_array($_POST['action'], ['add_staff','edit_staff','delete_staff'])): ?>
+        switchTab('staff');
     <?php endif; ?>
 <?php endif; ?>
 
@@ -1485,6 +1737,20 @@ function showResetForm(id, nama, semester, kelas) {
 
 function closeResetModal() {
     document.getElementById('resetModal').style.display = 'none';
+}
+
+function showStaffForm(id, nama, npp, jabatan) {
+    document.getElementById('editStaffId').value = id;
+    document.getElementById('editStaffName').textContent = 'Staff: ' + nama;
+    document.getElementById('editStaffFullName').value = nama;
+    document.getElementById('editStaffNpp').value = npp;
+    document.getElementById('editStaffJabatan').value = jabatan;
+    const modal = document.getElementById('staffModal');
+    modal.style.display = 'flex';
+}
+
+function closeStaffModal() {
+    document.getElementById('staffModal').style.display = 'none';
 }
 
 function filterSubmissionsByClass(cls) {

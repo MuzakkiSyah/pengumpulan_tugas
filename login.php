@@ -27,6 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['nama_lengkap'] = $user['nama_lengkap'];
                 $_SESSION['nomor_induk']  = $user['nomor_induk'];
                 $_SESSION['role']         = $user['role'];
+                $_SESSION['jabatan']      = $user['jabatan'] ?? null;
 
                 header("Location: " . ($user['role'] === 'laboran' ? 'laboran.php' : 'mahasiswa.php'));
                 exit();

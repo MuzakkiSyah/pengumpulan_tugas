@@ -103,16 +103,31 @@ try {
     }
 }
 
+// Dynamic database migration: add jabatan column to users table if not exists
+try {
+    $pdo->query("SELECT jabatan FROM users LIMIT 1");
+} catch (PDOException $e) {
+    try {
+        $pdo->exec("ALTER TABLE users ADD COLUMN jabatan ENUM('asisten_laboran', 'laboran', 'kepala_laboratorium') DEFAULT NULL AFTER role");
+        $pdo->exec("UPDATE users SET jabatan = 'laboran' WHERE role = 'laboran'");
+    } catch (PDOException $ex) {
+        // Ignore errors
+    }
+}
+
 // Dynamic database migration: seed default admin/laboran account if not exists
 try {
     $check_admin = $pdo->query("SELECT id FROM users WHERE username = 'admin' LIMIT 1");
     if (!$check_admin->fetch()) {
         $hash = password_hash('labrm2026', PASSWORD_BCRYPT);
         $stmt_ins_admin = $pdo->prepare("
-            INSERT INTO users (username, password, nama_lengkap, nomor_induk, role)
-            VALUES ('admin', ?, 'Rizka Muzakki Syah', '000000000', 'laboran')
+            INSERT INTO users (username, password, nama_lengkap, nomor_induk, role, jabatan)
+            VALUES ('admin', ?, 'Rizka Muzakki Syah', '000000000', 'laboran', 'laboran')
         ");
         $stmt_ins_admin->execute([$hash]);
+    } else {
+        // Ensure admin has jabatan set
+        $pdo->exec("UPDATE users SET jabatan = 'laboran' WHERE username = 'admin' AND jabatan IS NULL");
     }
 } catch (PDOException $e) {
     // Ignore migration/seeding errors
