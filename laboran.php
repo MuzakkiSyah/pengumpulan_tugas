@@ -294,9 +294,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         $nim   = trim($row[1] ?? '');
                         $uname = trim($row[2] ?? $nim); // default username = nim
                         $pass  = trim($row[3] ?? $nim); // default password = nim
-                        $semester = isset($row[4]) && trim($row[4]) !== '' ? (int)trim($row[4]) : 1;
+                        $prodi_excel = isset($row[4]) ? trim($row[4]) : '';
+                        $semester = isset($row[5]) && trim($row[5]) !== '' ? (int)trim($row[5]) : 1;
                         if ($semester < 1 || $semester > 6) $semester = 1;
-                        $kelas = isset($row[5]) && trim($row[5]) !== '' ? strtoupper(trim($row[5])) : 'A';
+                        $kelas = isset($row[6]) && trim($row[6]) !== '' ? strtoupper(trim($row[6])) : 'A';
 
                         if (empty($nama) || empty($nim)) {
                             $errors[] = "Baris $row_num: nama/NIM kosong.";
@@ -306,12 +307,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         if (empty($uname)) $uname = $nim;
                         if (empty($pass))  $pass  = $nim;
 
-                        // Auto-detect prodi based on NIM prefix
+                        // Determine prodi from excel or auto-detect based on NIM prefix
                         $prodi = 'D3 RMIK';
-                        if (stripos($nim, 'D22') === 0) {
-                            $prodi = 'D3 RMIK';
-                        } elseif (stripos($nim, 'D13') === 0) {
-                            $prodi = 'D4 MIK';
+                        if (!empty($prodi_excel)) {
+                            if (stripos($prodi_excel, 'D4') !== false || stripos($prodi_excel, 'D13') !== false) {
+                                $prodi = 'D4 MIK';
+                            } else {
+                                $prodi = 'D3 RMIK';
+                            }
+                        } else {
+                            if (stripos($nim, 'D22') === 0) {
+                                $prodi = 'D3 RMIK';
+                            } elseif (stripos($nim, 'D13') === 0) {
+                                $prodi = 'D4 MIK';
+                            }
                         }
 
                         try {
@@ -463,6 +472,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $uname = clean_input($_POST['username_staff']);
         $pass  = clean_input($_POST['password_staff']);
         $jabatan_post = clean_input($_POST['jabatan']);
+        $prodi = clean_input($_POST['prodi_staff'] ?? 'D3 RMIK');
         
         if (empty($nama) || empty($npp) || empty($uname) || empty($pass) || empty($jabatan_post)) {
             $message = 'Semua field staff wajib diisi!';
@@ -473,8 +483,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         } else {
             try {
                 $hash = password_hash($pass, PASSWORD_BCRYPT);
-                $stmt = $pdo->prepare("INSERT INTO users (username, password, nama_lengkap, nomor_induk, role, jabatan) VALUES (?, ?, ?, ?, 'laboran', ?)");
-                $stmt->execute([$uname, $hash, $nama, $npp, $jabatan_post]);
+                $stmt = $pdo->prepare("INSERT INTO users (username, password, nama_lengkap, nomor_induk, role, jabatan, prodi) VALUES (?, ?, ?, ?, 'laboran', ?, ?)");
+                $stmt->execute([$uname, $hash, $nama, $npp, $jabatan_post, $prodi]);
                 $message = "Staff $nama berhasil ditambahkan!";
                 $message_type = 'success';
             } catch (PDOException $e) {
@@ -490,17 +500,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $nama     = clean_input($_POST['nama_lengkap']);
         $npp      = clean_input($_POST['nomor_induk']);
         $jabatan_post = clean_input($_POST['jabatan']);
+        $prodi    = clean_input($_POST['prodi_staff'] ?? 'D3 RMIK');
         $new_pass = clean_input($_POST['new_password']);
         
         if ($staff_id > 0 && !empty($nama) && !empty($npp) && in_array($jabatan_post, ['asisten_laboran', 'laboran', 'kepala_laboratorium'])) {
             try {
                 if (!empty($new_pass)) {
                     $hash = password_hash($new_pass, PASSWORD_BCRYPT);
-                    $stmt = $pdo->prepare("UPDATE users SET nama_lengkap = ?, nomor_induk = ?, jabatan = ?, password = ? WHERE id = ? AND role = 'laboran'");
-                    $stmt->execute([$nama, $npp, $jabatan_post, $hash, $staff_id]);
+                    $stmt = $pdo->prepare("UPDATE users SET nama_lengkap = ?, nomor_induk = ?, jabatan = ?, prodi = ?, password = ? WHERE id = ? AND role = 'laboran'");
+                    $stmt->execute([$nama, $npp, $jabatan_post, $prodi, $hash, $staff_id]);
                 } else {
-                    $stmt = $pdo->prepare("UPDATE users SET nama_lengkap = ?, nomor_induk = ?, jabatan = ? WHERE id = ? AND role = 'laboran'");
-                    $stmt->execute([$nama, $npp, $jabatan_post, $staff_id]);
+                    $stmt = $pdo->prepare("UPDATE users SET nama_lengkap = ?, nomor_induk = ?, jabatan = ?, prodi = ? WHERE id = ? AND role = 'laboran'");
+                    $stmt->execute([$nama, $npp, $jabatan_post, $prodi, $staff_id]);
                 }
                 $message = 'Data staff berhasil diperbarui!';
                 $message_type = 'success';
@@ -561,10 +572,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 if (isset($_GET['download_template'])) {
     check_login('laboran');
     $data = [
-        ['nama_lengkap', 'nim', 'username', 'password', 'semester', 'kelas'],
-        ['Budi Santoso', '2024001', 'budi2024', '2024001', 1, 'A'],
-        ['Siti Rahayu', '2024002', 'siti2024', '2024002', 2, 'B'],
-        ['Ahmad Fauzi', '2024003', '', '', 3, 'A'] // kosong = default nim
+        ['nama_lengkap', 'nim', 'username', 'password', 'program_studi', 'semester', 'kelas'],
+        ['Budi Santoso', 'D222024001', 'budi2024', 'D222024001', 'D3 RMIK', 1, 'A'],
+        ['Siti Rahayu', 'D132024002', 'siti2024', 'D132024002', 'D4 MIK', 2, 'B'],
+        ['Ahmad Fauzi', 'D222024003', '', '', 'D3 RMIK', 3, 'A'] // kosong = default nim
     ];
     \Shuchkin\SimpleXLSXGen::fromArray($data)->downloadAs('template_mahasiswa.xlsx');
     exit();
@@ -617,6 +628,11 @@ if ($filter_matkul > 0) {
 } elseif ($filter_semester > 0) {
     $tugas_query_where = 'WHERE mk.id_semester = ?';
     $tugas_params[] = $filter_semester;
+}
+
+if ($current_jabatan === 'asisten_laboran') {
+    $tugas_query_where .= ($tugas_query_where ? ' AND ' : 'WHERE ') . "(a.prodi = 'all' OR a.prodi = ?)";
+    $tugas_params[] = $current_user['prodi'] ?? 'D3 RMIK';
 }
 
 $stmt = $pdo->prepare("
@@ -721,7 +737,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                 ];
                 $display_jabatan = $jabatan_labels[$current_jabatan] ?? 'Staff';
                 ?>
-                <div class="user-role"><?= htmlspecialchars($display_jabatan) ?></div>
+                <div class="user-role"><?= htmlspecialchars($display_jabatan) ?><?= $current_jabatan === 'asisten_laboran' ? ' · ' . htmlspecialchars($current_user['prodi'] ?? 'D3 RMIK') : '' ?></div>
             </div>
             <a href="logout.php" class="btn btn-secondary btn-sm">Logout</a>
         </div>
@@ -1326,11 +1342,17 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
                     <div class="form-group">
                         <label class="form-label">Program Studi Penerima</label>
-                        <select name="prodi_target" class="form-select" required>
-                            <option value="all">Semua Program Studi (D3 & D4)</option>
-                            <option value="D3 RMIK">D3 RMIK (D22)</option>
-                            <option value="D4 MIK">D4 MIK (D13)</option>
-                        </select>
+                        <?php if ($current_jabatan === 'asisten_laboran'): ?>
+                            <select name="prodi_target" class="form-select" required>
+                                <option value="<?= htmlspecialchars($current_user['prodi'] ?? 'D3 RMIK') ?>"><?= htmlspecialchars($current_user['prodi'] ?? 'D3 RMIK') ?></option>
+                            </select>
+                        <?php else: ?>
+                            <select name="prodi_target" class="form-select" required>
+                                <option value="all">Semua Program Studi (D3 & D4)</option>
+                                <option value="D3 RMIK">D3 RMIK (D22)</option>
+                                <option value="D4 MIK">D4 MIK (D13)</option>
+                            </select>
+                        <?php endif; ?>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Kelas Penerima</label>
@@ -1370,7 +1392,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
             <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem;">
                 <div>
                     <h3 style="font-size:1.2rem; margin-bottom:.3rem;">📤 Import Mahasiswa via Excel</h3>
-                    <p style="font-size:.88rem; color:var(--text-muted);">Upload file Excel berisi data mahasiswa. Kolom: <code style="background:var(--bg-input); padding:.1rem .4rem; border-radius:4px;">nama_lengkap, nim, username, password, semester</code></p>
+                    <p style="font-size:.88rem; color:var(--text-muted);">Upload file Excel berisi data mahasiswa. Kolom: <code style="background:var(--bg-input); padding:.1rem .4rem; border-radius:4px;">nama_lengkap, nim, username, password, program_studi, semester, kelas</code></p>
                 </div>
                 <a href="laboran.php?download_template=1" class="btn btn-secondary btn-sm" style="white-space:nowrap;">
                     ⬇ Unduh Template Excel
@@ -1611,7 +1633,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                         <input type="text" name="nomor_induk" class="form-input" placeholder="NPP / NIP" required>
                     </div>
                 </div>
-                <div class="form-row-3" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom:1rem;">
+                <div class="form-row-3" style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem; margin-bottom:1rem;">
                     <div class="form-group">
                         <label class="form-label">Username</label>
                         <input type="text" name="username_staff" class="form-input" placeholder="Username untuk login" required>
@@ -1626,6 +1648,13 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                             <option value="asisten_laboran">Asisten Laboran</option>
                             <option value="laboran" selected>Laboran</option>
                             <option value="kepala_laboratorium">Kepala Laboratorium</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Program Studi</label>
+                        <select name="prodi_staff" class="form-select" required>
+                            <option value="D3 RMIK">D3 RMIK (D22)</option>
+                            <option value="D4 MIK">D4 MIK (D13)</option>
                         </select>
                     </div>
                 </div>
@@ -1658,7 +1687,12 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                     <?php foreach ($daftar_staff as $i => $st): ?>
                     <tr>
                         <td style="color:var(--text-muted);"><?= $i+1 ?></td>
-                        <td style="font-weight:600; color:var(--text-main);"><?= htmlspecialchars($st['nama_lengkap']) ?></td>
+                        <td style="font-weight:600; color:var(--text-main);">
+                            <?= htmlspecialchars($st['nama_lengkap']) ?>
+                            <?php if ($st['jabatan'] === 'asisten_laboran'): ?>
+                                <span style="font-size:0.75rem; font-weight:normal; color:var(--text-muted);"> (<?= htmlspecialchars($st['prodi'] ?? 'D3 RMIK') ?>)</span>
+                            <?php endif; ?>
+                        </td>
                         <td><code style="background:var(--bg-input); padding:.15rem .5rem; border-radius:4px; font-size:.85rem;"><?= htmlspecialchars($st['nomor_induk']) ?></code></td>
                         <td><?= htmlspecialchars($st['username']) ?></td>
                         <td>
@@ -1672,7 +1706,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                         </td>
                         <td>
                             <div style="display:flex; gap:.4rem; flex-wrap:wrap;">
-                                <button class="btn btn-secondary btn-sm" onclick="showStaffForm(<?= $st['id'] ?>, '<?= htmlspecialchars(addslashes($st['nama_lengkap'])) ?>', '<?= htmlspecialchars(addslashes($st['nomor_induk'])) ?>', '<?= htmlspecialchars($st['jabatan']) ?>')">📝 Edit</button>
+                                <button class="btn btn-secondary btn-sm" onclick="showStaffForm(<?= $st['id'] ?>, '<?= htmlspecialchars(addslashes($st['nama_lengkap'])) ?>', '<?= htmlspecialchars(addslashes($st['nomor_induk'])) ?>', '<?= htmlspecialchars($st['jabatan']) ?>', '<?= htmlspecialchars(addslashes($st['prodi'] ?? 'D3 RMIK')) ?>')">📝 Edit</button>
                                 <?php if ($st['id'] !== (int)$user_id): ?>
                                     <form method="POST" onsubmit="return confirm('Hapus staff <?= htmlspecialchars(addslashes($st['nama_lengkap'])) ?>?')">
                                         <input type="hidden" name="action" value="delete_staff">
@@ -1710,6 +1744,13 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                             <option value="asisten_laboran">Asisten Laboran</option>
                             <option value="laboran">Laboran</option>
                             <option value="kepala_laboratorium">Kepala Laboratorium</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:1rem;">
+                        <label class="form-label">Program Studi</label>
+                        <select name="prodi_staff" id="editStaffProdi" class="form-select" required>
+                            <option value="D3 RMIK">D3 RMIK (D22)</option>
+                            <option value="D4 MIK">D4 MIK (D13)</option>
                         </select>
                     </div>
                     <div class="form-group" style="margin-bottom:1.25rem;">
@@ -1791,12 +1832,13 @@ function closeResetModal() {
     document.getElementById('resetModal').style.display = 'none';
 }
 
-function showStaffForm(id, nama, npp, jabatan) {
+function showStaffForm(id, nama, npp, jabatan, prodi) {
     document.getElementById('editStaffId').value = id;
     document.getElementById('editStaffName').textContent = 'Staff: ' + nama;
     document.getElementById('editStaffFullName').value = nama;
     document.getElementById('editStaffNpp').value = npp;
     document.getElementById('editStaffJabatan').value = jabatan;
+    document.getElementById('editStaffProdi').value = prodi || 'D3 RMIK';
     const modal = document.getElementById('staffModal');
     modal.style.display = 'flex';
 }
