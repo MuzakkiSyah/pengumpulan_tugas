@@ -21,6 +21,18 @@ try {
     die("Koneksi database gagal: " . $e->getMessage());
 }
 
+// Dynamic database migration: add status column to submissions table if not exists
+try {
+    $pdo->query("SELECT status FROM submissions LIMIT 1");
+} catch (PDOException $e) {
+    try {
+        $pdo->exec("ALTER TABLE submissions ADD COLUMN status VARCHAR(20) DEFAULT 'dikumpul' AFTER catatan_nilai");
+    } catch (PDOException $ex) {
+        // Ignore errors
+    }
+}
+
+
 // Fungsi bantu untuk mengecek login
 function check_login($required_role = null) {
     if (!isset($_SESSION['user_id'])) {

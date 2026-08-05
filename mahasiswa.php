@@ -12,14 +12,20 @@ $message_type = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'upload') {
     $assignment_id = (int)$_POST['assignment_id'];
 
-    $stmt = $pdo->prepare("SELECT a.*, mk.nama_matkul FROM assignments a JOIN mata_kuliah mk ON a.id_matkul = mk.id WHERE a.id = ?");
-    $stmt->execute([$assignment_id]);
+    $stmt = $pdo->prepare("
+        SELECT a.*, mk.nama_matkul, sub.status as sub_status 
+        FROM assignments a 
+        JOIN mata_kuliah mk ON a.id_matkul = mk.id 
+        LEFT JOIN submissions sub ON sub.id_assignment = a.id AND sub.id_mahasiswa = ?
+        WHERE a.id = ?
+    ");
+    $stmt->execute([$user_id, $assignment_id]);
     $assignment = $stmt->fetch();
 
     if (!$assignment) {
         $message = 'Tugas tidak ditemukan!';
         $message_type = 'error';
-    } elseif (strtotime($assignment['deadline']) < time()) {
+    } elseif (strtotime($assignment['deadline']) < time() && $assignment['sub_status'] !== 'perlu_perbaikan') {
         $message = 'Deadline sudah lewat! Anda tidak dapat mengumpulkan tugas ini.';
         $message_type = 'error';
     } elseif (!isset($_FILES['file_tugas']) || $_FILES['file_tugas']['error'] !== UPLOAD_ERR_OK) {
@@ -56,9 +62,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     if ($old_sub && file_exists($old_sub['path_file'])) unlink($old_sub['path_file']);
 
                     $stmt = $pdo->prepare("
-                        INSERT INTO submissions (id_assignment, id_mahasiswa, nama_file, path_file, waktu_unggah)
-                        VALUES (?, ?, ?, ?, NOW())
-                        ON DUPLICATE KEY UPDATE nama_file = VALUES(nama_file), path_file = VALUES(path_file), waktu_unggah = NOW()
+                        INSERT INTO submissions (id_assignment, id_mahasiswa, nama_file, path_file, status, waktu_unggah)
+                        VALUES (?, ?, ?, ?, 'dikumpul', NOW())
+                        ON DUPLICATE KEY UPDATE nama_file = VALUES(nama_file), path_file = VALUES(path_file), status = 'dikumpul', waktu_unggah = NOW()
                     ");
                     $stmt->execute([$assignment_id, $user_id, $file['name'], $dest_path]);
                     $message = 'Tugas berhasil dikumpulkan! 🎉';
@@ -109,7 +115,8 @@ $where_sql = implode(' AND ', $where_clauses);
 $stmt = $pdo->prepare("
     SELECT a.*, mk.nama_matkul, mk.kode_matkul, mk.id as mk_id,
            s.nama_semester,
-           sub.id as sub_id, sub.nama_file, sub.waktu_unggah, sub.path_file
+           sub.id as sub_id, sub.nama_file, sub.waktu_unggah, sub.path_file,
+           sub.nilai, sub.catatan_nilai, sub.status
     FROM assignments a
     JOIN mata_kuliah mk ON a.id_matkul = mk.id
     JOIN semesters s ON mk.id_semester = s.id
@@ -258,7 +265,13 @@ foreach ($all_assignments as $a) { if ($a['sub_id']) $total_kumpul++; }
                     <div class="tugas-header-row">
                         <div class="tugas-title"><?= htmlspecialchars($a['judul']) ?></div>
                         <?php if ($is_submitted): ?>
-                            <span class="tugas-status status-collected">✅ Sudah Dikumpulkan</span>
+                            <?php if ($a['status'] === 'disetujui'): ?>
+                                <span class="tugas-status" style="background:var(--color-success-bg); color:var(--color-success); border:1.5px solid var(--color-success-border);">✅ Disetujui</span>
+                            <?php elseif ($a['status'] === 'perlu_perbaikan'): ?>
+                                <span class="tugas-status" style="background:var(--color-warning-bg); color:var(--color-warning); border:1.5px solid var(--color-warning-border);">⚠️ Perlu Perbaikan</span>
+                            <?php else: ?>
+                                <span class="tugas-status" style="background:var(--accent-primary-light); color:var(--accent-primary); border:1.5px solid var(--color-info-border);">⏳ Menunggu Penilaian</span>
+                            <?php endif; ?>
                         <?php elseif ($is_overdue): ?>
                             <span class="tugas-status status-overdue">❌ Deadline Lewat</span>
                         <?php else: ?>
@@ -292,13 +305,47 @@ foreach ($all_assignments as $a) { if ($a['sub_id']) $total_kumpul++; }
                             </div>
                             <a href="download.php?sub_id=<?= $a['sub_id'] ?>" class="btn btn-secondary btn-sm" style="text-decoration:none;font-size:.78rem;">⬇ Unduh</a>
                         </div>
-                        <?php if (!$is_overdue): ?>
-                            <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:.6rem;">Ingin mengganti file?</p>
+
+                        <!-- Kotak Nilai & Komentar -->
+                        <?php if ($a['nilai'] !== null || !empty($a['catatan_nilai'])): ?>
+                            <div class="grade-feedback-box" style="margin-top:0.75rem; margin-bottom:0.75rem; padding:0.9rem 1.1rem; border-radius:10px; background:var(--bg-main); border:1.5px solid var(--border-color);">
+                                <?php if ($a['nilai'] !== null): ?>
+                                    <div style="font-weight:700; font-size:0.92rem; margin-bottom:0.35rem; color:var(--text-main);">
+                                        Nilai Tugas: <span style="color:var(--accent-primary); font-size:1.15rem; font-family:'Outfit', sans-serif;"><?= htmlspecialchars($a['nilai']) ?></span> <span style="color:var(--text-muted); font-size:0.85rem; font-weight:normal;">/ 100</span>
+                                    </div>
+                                <?php endif; ?>
+                                <?php if (!empty($a['catatan_nilai'])): ?>
+                                    <div style="font-size:0.88rem; color:var(--text-secondary); line-height:1.5;">
+                                        <strong style="color:var(--text-main); font-size:0.85rem; text-transform:uppercase; letter-spacing:0.03em; display:block; margin-bottom:0.2rem;">Komentar Laboran:</strong>
+                                        <div style="font-style:italic; background:var(--bg-card); border-left:3px solid var(--accent-primary); padding:0.5rem 0.75rem; border-radius:4px; color:var(--text-muted);"><?= nl2br(htmlspecialchars($a['catatan_nilai'])) ?></div>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if (!$is_overdue || $a['status'] === 'perlu_perbaikan'): ?>
+                            <!-- Banner khusus jika perlu perbaikan dan deadline sudah lewat -->
+                            <?php if ($is_overdue && $a['status'] === 'perlu_perbaikan'): ?>
+                                <div style="background:var(--color-warning-bg); border:1.5px solid var(--color-warning-border); border-radius:8px; padding:0.75rem 1rem; margin-bottom:0.75rem; font-size:0.85rem; color:var(--color-warning);">
+                                    💡 <strong>Revisi Tugas:</strong> Laboran meminta perbaikan untuk tugas ini. Anda diizinkan untuk mengunggah ulang file meskipun batas waktu pengerjaan telah habis.
+                                </div>
+                            <?php endif; ?>
+                            
+                            <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:.6rem;">
+                                <?= $a['status'] === 'perlu_perbaikan' ? 'Unggah file revisi:' : 'Ingin mengganti file?' ?>
+                            </p>
                             <form method="POST" enctype="multipart/form-data" class="upload-form">
                                 <input type="hidden" name="action" value="upload">
                                 <input type="hidden" name="assignment_id" value="<?= $a['id'] ?>">
-                                <div class="file-input-wrapper"><input type="file" name="file_tugas" class="form-input" required style="padding:.5rem;"></div>
-                                <button type="submit" class="btn btn-secondary btn-sm">🔄 Ganti File</button>
+                                <div class="file-input-wrapper">
+                                    <input type="file" name="file_tugas" class="form-input" required style="padding:.5rem;"
+                                        <?php if (!empty($a['tipe_file']) && $a['tipe_file'] !== 'all'): ?>
+                                            accept=".<?= str_replace(',', ',.', strtolower($a['tipe_file'])) ?>"
+                                        <?php endif; ?>>
+                                </div>
+                                <button type="submit" class="btn btn-secondary btn-sm">
+                                    <?= $a['status'] === 'perlu_perbaikan' ? '🔄 Kirim Revisi' : '🔄 Ganti File' ?>
+                                </button>
                             </form>
                         <?php endif; ?>
                     <?php elseif (!$is_overdue): ?>

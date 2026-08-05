@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS `submissions` (
   `path_file` VARCHAR(255) NOT NULL,
   `nilai` TINYINT UNSIGNED DEFAULT NULL COMMENT '0-100',
   `catatan_nilai` TEXT DEFAULT NULL,
+  `status` VARCHAR(20) DEFAULT 'dikumpul',
   `waktu_unggah` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (`id_assignment`) REFERENCES `assignments`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`id_mahasiswa`) REFERENCES `users`(`id`) ON DELETE CASCADE,

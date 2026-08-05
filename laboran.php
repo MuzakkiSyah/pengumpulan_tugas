@@ -280,6 +280,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
     }
 
+    // --- Beri Nilai & Komentar (Grade Submission) ---
+    elseif ($_POST['action'] === 'grade_submission') {
+        $sub_id = (int)$_POST['submission_id'];
+        $nilai = $_POST['nilai'] !== '' ? (int)$_POST['nilai'] : null;
+        $catatan = clean_input($_POST['catatan_nilai']);
+        $status = clean_input($_POST['status']);
+        
+        if ($sub_id > 0 && in_array($status, ['dikumpul', 'perlu_perbaikan', 'disetujui'])) {
+            try {
+                $stmt = $pdo->prepare("UPDATE submissions SET nilai = ?, catatan_nilai = ?, status = ? WHERE id = ?");
+                $stmt->execute([$nilai, $catatan, $status, $sub_id]);
+                $message = 'Nilai dan komentar berhasil disimpan!';
+                $message_type = 'success';
+            } catch (PDOException $e) {
+                $message = 'Gagal menyimpan nilai: ' . $e->getMessage();
+                $message_type = 'error';
+            }
+        } else {
+            $message = 'Data input tidak valid!';
+            $message_type = 'error';
+        }
+    }
+
     // Post-Redirect-Get pattern to prevent form resubmission
     if ($message !== '') {
         $active_tab = 'tugas';
@@ -469,14 +492,72 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
             </div>
         <?php else: ?>
             <?php foreach ($detail_submissions as $sub): ?>
-            <div class="sub-row">
-                <div>
-                    <div style="font-weight:500;font-size:.93rem;"><?= htmlspecialchars($sub['nama_lengkap']) ?></div>
-                    <div style="font-size:.78rem;color:var(--text-muted);">NIM: <?= htmlspecialchars($sub['nomor_induk']) ?></div>
-                    <div style="font-size:.75rem;color:var(--text-muted-dark);">📎 <?= htmlspecialchars($sub['nama_file']) ?></div>
-                    <div style="font-size:.73rem;color:var(--text-muted-dark);">⏱ <?= format_tanggal($sub['waktu_unggah']) ?></div>
+            <div class="submission-card" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; background: var(--bg-card);">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.75rem;">
+                    <div>
+                        <div style="font-weight:600; font-size:.95rem; color:var(--text-main);"><?= htmlspecialchars($sub['nama_lengkap']) ?></div>
+                        <div style="font-size:.8rem; color:var(--text-muted);">NIM: <?= htmlspecialchars($sub['nomor_induk']) ?></div>
+                        <div style="font-size:.78rem; color:var(--text-muted-dark); margin-top:0.25rem;">📎 <?= htmlspecialchars($sub['nama_file']) ?></div>
+                        <div style="font-size:.75rem; color:var(--text-muted-dark);">⏱ <?= format_tanggal($sub['waktu_unggah']) ?></div>
+                        
+                        <!-- Badge status pengumpulan -->
+                        <div style="margin-top:0.5rem; display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                            <?php if ($sub['status'] === 'disetujui'): ?>
+                                <span class="badge badge-active" style="font-size:0.68rem; padding:0.1rem 0.5rem; border-radius:4px; text-transform:none;">Selesai / Disetujui</span>
+                            <?php elseif ($sub['status'] === 'perlu_perbaikan'): ?>
+                                <span class="badge" style="background:var(--color-warning-bg); color:var(--color-warning); border:1.5px solid var(--color-warning-border); font-size:0.68rem; padding:0.1rem 0.5rem; border-radius:4px; text-transform:none;">Perlu Perbaikan</span>
+                            <?php else: ?>
+                                <span class="badge badge-info" style="font-size:0.68rem; padding:0.1rem 0.5rem; border-radius:4px; text-transform:none;">Belum Dinilai</span>
+                            <?php endif; ?>
+                            
+                            <?php if ($sub['nilai'] !== null): ?>
+                                <span style="font-size:0.82rem; font-weight:700; color:var(--accent-primary);">Nilai: <?= $sub['nilai'] ?>/100</span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div style="display:flex; gap:0.3rem;">
+                        <!-- View Button -->
+                        <a href="view_submission.php?id=<?= $sub['id'] ?>" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none; font-size:.78rem; padding: 0.35rem 0.65rem; display:inline-flex; align-items:center; gap:0.2rem; border-radius:6px;">👁️ Lihat</a>
+                        <!-- Download Button -->
+                        <a href="download.php?sub_id=<?= $sub['id'] ?>" class="btn btn-secondary btn-sm" style="text-decoration:none; font-size:.78rem; padding: 0.35rem 0.65rem; display:inline-flex; align-items:center; gap:0.2rem; border-radius:6px;">⬇ Unduh</a>
+                    </div>
                 </div>
-                <a href="download.php?sub_id=<?= $sub['id'] ?>" class="btn btn-secondary btn-sm" style="text-decoration:none;font-size:.78rem;white-space:nowrap;">⬇ Unduh</a>
+                
+                <!-- Grading Form Toggle -->
+                <details style="margin-top:0.5rem; border-top:1px dashed var(--border-color); padding-top:0.5rem;">
+                    <summary style="font-size:0.82rem; color:var(--accent-primary); cursor:pointer; font-weight:600; outline:none; user-select:none;">
+                        📝 Atur Nilai & Komentar
+                    </summary>
+                    
+                    <form method="POST" style="margin-top:0.75rem; background:var(--bg-main); padding:0.75rem; border-radius:8px; border:1px solid var(--border-color);">
+                        <input type="hidden" name="action" value="grade_submission">
+                        <input type="hidden" name="submission_id" value="<?= $sub['id'] ?>">
+                        
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-bottom:0.5rem;">
+                            <div>
+                                <label class="form-label" style="font-size:0.78rem; margin-bottom:0.2rem; display:block;">Nilai (0-100)</label>
+                                <input type="number" name="nilai" class="form-input" min="0" max="100" value="<?= htmlspecialchars($sub['nilai'] ?? '') ?>" placeholder="N/A" style="padding:0.35rem; font-size:0.85rem; border-radius:6px; background:var(--bg-card);">
+                            </div>
+                            <div>
+                                <label class="form-label" style="font-size:0.78rem; margin-bottom:0.2rem; display:block;">Status</label>
+                                <select name="status" class="form-select" style="padding:0.35rem; font-size:0.85rem; height:auto; border-radius:6px; background:var(--bg-card);" required>
+                                    <option value="dikumpul" <?= $sub['status'] === 'dikumpul' ? 'selected' : '' ?>>Belum Dinilai</option>
+                                    <option value="disetujui" <?= $sub['status'] === 'disetujui' ? 'selected' : '' ?>>Selesai / Disetujui</option>
+                                    <option value="perlu_perbaikan" <?= $sub['status'] === 'perlu_perbaikan' ? 'selected' : '' ?>>Perlu Perbaikan</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-bottom:0.75rem;">
+                            <label class="form-label" style="font-size:0.78rem; margin-bottom:0.2rem; display:block;">Komentar / Catatan Perbaikan</label>
+                            <textarea name="catatan_nilai" class="form-textarea" rows="2" placeholder="Tulis komentar atau instruksi revisi..." style="padding:0.4rem; font-size:0.85rem; height:auto; min-height:50px; border-radius:6px; background:var(--bg-card);"><?= htmlspecialchars($sub['catatan_nilai'] ?? '') ?></textarea>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-sm" style="width:100%; font-size:0.8rem; padding:0.45rem; border-radius:6px;">Simpan Nilai & Komentar</button>
+                    </form>
+                </details>
             </div>
             <?php endforeach; ?>
         <?php endif; ?>
