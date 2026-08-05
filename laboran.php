@@ -930,21 +930,49 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
         </div>
 
         <!-- Daftar Matkul per Semester -->
-        <h3 style="font-size:1.2rem;margin-bottom:1rem;">📋 Daftar Mata Kuliah</h3>
         <?php
+        $sort_matkul = isset($_GET['sort_matkul']) ? $_GET['sort_matkul'] : 'semester_asc';
+
+        $order_by_matkul = "mk.semester ASC, mk.kode_matkul ASC";
+        if ($sort_matkul === 'semester_desc') {
+            $order_by_matkul = "mk.semester DESC, mk.kode_matkul ASC";
+        } elseif ($sort_matkul === 'kode_asc') {
+            $order_by_matkul = "mk.kode_matkul ASC";
+        } elseif ($sort_matkul === 'kode_desc') {
+            $order_by_matkul = "mk.kode_matkul DESC";
+        } elseif ($sort_matkul === 'nama_asc') {
+            $order_by_matkul = "mk.nama_matkul ASC";
+        } elseif ($sort_matkul === 'nama_desc') {
+            $order_by_matkul = "mk.nama_matkul DESC";
+        }
+
         // Kelompokkan matkul per semester
         $matkul_by_sem = [];
         $all_matkul_full = $pdo->query("
             SELECT mk.*, s.nama_semester, s.status as status_sem
             FROM mata_kuliah mk
             JOIN semesters s ON mk.id_semester = s.id
-            ORDER BY s.created_at DESC, mk.kode_matkul ASC
+            ORDER BY s.created_at DESC, $order_by_matkul
         ")->fetchAll();
         foreach ($all_matkul_full as $mk) {
             $matkul_by_sem[$mk['id_semester']]['semester'] = $mk['nama_semester'];
             $matkul_by_sem[$mk['id_semester']]['matkul'][] = $mk;
         }
         ?>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:.5rem;">
+            <h3 style="font-size:1.2rem; margin-bottom:0;">📋 Daftar Mata Kuliah</h3>
+            <div style="display:flex; align-items:center; gap:.5rem;">
+                <label class="form-label" style="margin-bottom:0; font-size:.85rem; white-space:nowrap;">Urutkan:</label>
+                <select class="form-input" style="padding:.3rem .6rem; font-size:.82rem; width:180px;" onchange="location.href='laboran.php?tab=matkul&sort_matkul=' + this.value">
+                    <option value="semester_asc" <?= $sort_matkul === 'semester_asc' ? 'selected' : '' ?>>Semester (Terkecil)</option>
+                    <option value="semester_desc" <?= $sort_matkul === 'semester_desc' ? 'selected' : '' ?>>Semester (Terbesar)</option>
+                    <option value="kode_asc" <?= $sort_matkul === 'kode_asc' ? 'selected' : '' ?>>Kode Matkul (A-Z)</option>
+                    <option value="kode_desc" <?= $sort_matkul === 'kode_desc' ? 'selected' : '' ?>>Kode Matkul (Z-A)</option>
+                    <option value="nama_asc" <?= $sort_matkul === 'nama_asc' ? 'selected' : '' ?>>Nama Matkul (A-Z)</option>
+                    <option value="nama_desc" <?= $sort_matkul === 'nama_desc' ? 'selected' : '' ?>>Nama Matkul (Z-A)</option>
+                </select>
+            </div>
+        </div>
         <?php if (empty($matkul_by_sem)): ?>
             <div class="glass-panel"><div class="empty-state"><div class="empty-icon">📭</div><p>Belum ada mata kuliah yang ditambahkan.</p></div></div>
         <?php else: ?>
@@ -1157,6 +1185,25 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
         <!-- Daftar Mahasiswa -->
         <h3 style="font-size:1.2rem; margin-bottom:1rem;">👥 Daftar Akun Mahasiswa</h3>
         <?php
+        $sort_mhs = isset($_GET['sort_mhs']) ? $_GET['sort_mhs'] : 'nama_asc';
+        
+        $order_by_mhs = "u.nama_lengkap ASC";
+        if ($sort_mhs === 'nama_desc') {
+            $order_by_mhs = "u.nama_lengkap DESC";
+        } elseif ($sort_mhs === 'nim_asc') {
+            $order_by_mhs = "u.nomor_induk ASC";
+        } elseif ($sort_mhs === 'nim_desc') {
+            $order_by_mhs = "u.nomor_induk DESC";
+        } elseif ($sort_mhs === 'semester_asc') {
+            $order_by_mhs = "u.semester ASC, u.nama_lengkap ASC";
+        } elseif ($sort_mhs === 'semester_desc') {
+            $order_by_mhs = "u.semester DESC, u.nama_lengkap ASC";
+        } elseif ($sort_mhs === 'kumpul_asc') {
+            $order_by_mhs = "total_kumpul ASC, u.nama_lengkap ASC";
+        } elseif ($sort_mhs === 'kumpul_desc') {
+            $order_by_mhs = "total_kumpul DESC, u.nama_lengkap ASC";
+        }
+
         $daftar_mhs = $pdo->query("
             SELECT u.*, 
                    COUNT(sub.id) as total_kumpul
@@ -1164,7 +1211,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
             LEFT JOIN submissions sub ON sub.id_mahasiswa = u.id
             WHERE u.role = 'mahasiswa'
             GROUP BY u.id
-            ORDER BY u.nama_lengkap ASC
+            ORDER BY $order_by_mhs
         ")->fetchAll();
         ?>
         <?php if (empty($daftar_mhs)): ?>
@@ -1175,9 +1222,24 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                 </div>
             </div>
         <?php else: ?>
-            <!-- Search filter -->
-            <div style="margin-bottom:1rem;">
-                <input type="text" id="searchMhs" class="form-input" placeholder="🔍 Cari nama atau NIM..." oninput="filterMhs()" style="max-width:350px;">
+            <!-- Search & Sort filter -->
+            <div style="margin-bottom:1rem; display:flex; gap:1rem; align-items:center; flex-wrap:wrap;">
+                <div style="flex:1; min-width:250px;">
+                    <input type="text" id="searchMhs" class="form-input" placeholder="🔍 Cari nama atau NIM..." oninput="filterMhs()" style="width:100%;">
+                </div>
+                <div style="display:flex; align-items:center; gap:.5rem;">
+                    <label class="form-label" style="margin-bottom:0; font-size:.85rem; white-space:nowrap;">Urutkan:</label>
+                    <select class="form-input" style="padding:.3rem .6rem; font-size:.82rem; width:180px;" onchange="location.href='laboran.php?tab=akun&sort_mhs=' + this.value">
+                        <option value="nama_asc" <?= $sort_mhs === 'nama_asc' ? 'selected' : '' ?>>Nama Lengkap (A-Z)</option>
+                        <option value="nama_desc" <?= $sort_mhs === 'nama_desc' ? 'selected' : '' ?>>Nama Lengkap (Z-A)</option>
+                        <option value="nim_asc" <?= $sort_mhs === 'nim_asc' ? 'selected' : '' ?>>NIM (Terkecil)</option>
+                        <option value="nim_desc" <?= $sort_mhs === 'nim_desc' ? 'selected' : '' ?>>NIM (Terbesar)</option>
+                        <option value="semester_asc" <?= $sort_mhs === 'semester_asc' ? 'selected' : '' ?>>Semester (Terkecil)</option>
+                        <option value="semester_desc" <?= $sort_mhs === 'semester_desc' ? 'selected' : '' ?>>Semester (Terbesar)</option>
+                        <option value="kumpul_asc" <?= $sort_mhs === 'kumpul_asc' ? 'selected' : '' ?>>Total Kumpul (Sedikit)</option>
+                        <option value="kumpul_desc" <?= $sort_mhs === 'kumpul_desc' ? 'selected' : '' ?>>Total Kumpul (Banyak)</option>
+                    </select>
+                </div>
             </div>
             <div class="table-wrapper">
                 <table class="custom-table" id="mhsTable">
@@ -1268,16 +1330,18 @@ function closeDetail() {
     document.getElementById('detailPanel').classList.remove('open');
     document.getElementById('detailOverlay').classList.remove('open');
 }
-<?php if ($flash_tab): ?>
+<?php if (isset($_GET['tab'])): ?>
+    switchTab('<?= htmlspecialchars($_GET['tab']) ?>');
+<?php elseif ($flash_tab): ?>
     switchTab('<?= $flash_tab ?>');
 <?php elseif (isset($_POST['action'])): ?>
     <?php if (in_array($_POST['action'], ['add_semester','delete_semester','toggle_semester'])): ?>
         switchTab('semester');
-    <?php elseif (in_array($_POST['action'], ['add_matkul','delete_matkul','import_matkul_csv'])): ?>
+    <?php elseif (in_array($_POST['action'], ['add_matkul','delete_matkul','import_matkul_excel'])): ?>
         switchTab('matkul');
     <?php elseif ($_POST['action'] === 'add_assignment'): ?>
         switchTab('buat-tugas');
-    <?php elseif (in_array($_POST['action'], ['add_mahasiswa','delete_mahasiswa','edit_mahasiswa','reset_password','import_csv'])): ?>
+    <?php elseif (in_array($_POST['action'], ['add_mahasiswa','delete_mahasiswa','edit_mahasiswa','reset_password','import_excel'])): ?>
         switchTab('akun');
     <?php endif; ?>
 <?php endif; ?>
