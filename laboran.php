@@ -589,6 +589,14 @@ if ($filter_semester > 0) {
 }
 $all_matkul = $stmt->fetchAll();
 
+// Ambil semua mata kuliah lengkap untuk tab buat-tugas dan asisten laboran
+$all_matkul_full = $pdo->query("
+    SELECT mk.*, s.nama_semester, s.status as status_sem
+    FROM mata_kuliah mk
+    JOIN semesters s ON mk.id_semester = s.id
+    ORDER BY s.created_at DESC, mk.semester ASC, mk.kode_matkul ASC
+")->fetchAll();
+
 // Ambil tugas dikelompokkan per mata kuliah
 $tugas_query_where = '';
 $tugas_params = [];
