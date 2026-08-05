@@ -812,27 +812,77 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
     <!-- ============================================================ -->
     <div class="tab-content active" id="tab-tugas">
 
-        <!-- Filter -->
-        <div class="filter-bar">
-            <span class="filter-label">Semester:</span>
-            <a href="laboran.php" class="btn btn-sm <?= !$filter_semester ? 'btn-primary' : 'btn-secondary' ?>" style="text-decoration:none;">Semua</a>
-            <?php foreach ($semesters as $sem): ?>
-                <a href="laboran.php?semester=<?= $sem['id'] ?>" class="btn btn-sm <?= $filter_semester == $sem['id'] ? 'btn-primary' : 'btn-secondary' ?>" style="text-decoration:none;">
-                    <?= htmlspecialchars($sem['nama_semester']) ?>
-                </a>
-            <?php endforeach; ?>
+        <!-- Filter Dropdowns -->
+        <?php 
+        $selected_semester_name = 'Semua Semester';
+        foreach ($semesters as $sem) {
+            if ($filter_semester == $sem['id']) {
+                $selected_semester_name = $sem['nama_semester'];
+                break;
+            }
+        }
+
+        $selected_matkul_name = 'Semua Mata Kuliah';
+        if ($filter_semester && !empty($all_matkul)) {
+            foreach ($all_matkul as $mk) {
+                if ($filter_matkul == $mk['id']) {
+                    $selected_matkul_name = $mk['kode_matkul'] . ' — ' . $mk['nama_matkul'];
+                    break;
+                }
+            }
+        }
+        ?>
+        <div class="filter-bar" style="gap: 1.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <span class="filter-label">📅 Semester:</span>
+                <div class="searchable-dropdown" id="dropdown-semester">
+                    <div class="dropdown-trigger">
+                        <span class="dropdown-trigger-text"><?= htmlspecialchars($selected_semester_name) ?></span>
+                        <span class="dropdown-arrow">▼</span>
+                    </div>
+                    <div class="dropdown-menu">
+                        <div class="dropdown-search-wrapper">
+                            <input type="text" class="dropdown-search-input" placeholder="Cari semester...">
+                        </div>
+                        <div class="dropdown-options">
+                            <div class="dropdown-option <?= !$filter_semester ? 'selected' : '' ?>" data-value="0" data-url="laboran.php">Semua Semester</div>
+                            <?php foreach ($semesters as $sem): ?>
+                                <div class="dropdown-option <?= $filter_semester == $sem['id'] ? 'selected' : '' ?>" data-value="<?= $sem['id'] ?>" data-url="laboran.php?semester=<?= $sem['id'] ?>">
+                                    <?= htmlspecialchars($sem['nama_semester']) ?>
+                                </div>
+                            <?php endforeach; ?>
+                            <div class="dropdown-option no-results">Tidak ada hasil</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <?php if ($filter_semester && !empty($all_matkul)): ?>
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                <span class="filter-label">📁 Matkul:</span>
+                <div class="searchable-dropdown" id="dropdown-matkul">
+                    <div class="dropdown-trigger">
+                        <span class="dropdown-trigger-text"><?= htmlspecialchars($selected_matkul_name) ?></span>
+                        <span class="dropdown-arrow">▼</span>
+                    </div>
+                    <div class="dropdown-menu">
+                        <div class="dropdown-search-wrapper">
+                            <input type="text" class="dropdown-search-input" placeholder="Cari matkul...">
+                        </div>
+                        <div class="dropdown-options">
+                            <div class="dropdown-option <?= !$filter_matkul ? 'selected' : '' ?>" data-value="0" data-url="laboran.php?semester=<?= $filter_semester ?>">Semua Mata Kuliah</div>
+                            <?php foreach ($all_matkul as $mk): ?>
+                                <div class="dropdown-option <?= $filter_matkul == $mk['id'] ? 'selected' : '' ?>" data-value="<?= $mk['id'] ?>" data-url="laboran.php?semester=<?= $filter_semester ?>&matkul=<?= $mk['id'] ?>">
+                                    <?= htmlspecialchars($mk['kode_matkul']) ?> — <?= htmlspecialchars($mk['nama_matkul']) ?>
+                                </div>
+                            <?php endforeach; ?>
+                            <div class="dropdown-option no-results">Tidak ada hasil</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
         </div>
-        <?php if ($filter_semester && !empty($all_matkul)): ?>
-        <div class="filter-bar" style="margin-top:-.5rem;">
-            <span class="filter-label">Matkul:</span>
-            <a href="laboran.php?semester=<?= $filter_semester ?>" class="btn btn-sm <?= !$filter_matkul ? 'btn-primary' : 'btn-secondary' ?>" style="text-decoration:none;">Semua</a>
-            <?php foreach ($all_matkul as $mk): ?>
-                <a href="laboran.php?semester=<?= $filter_semester ?>&matkul=<?= $mk['id'] ?>" class="btn btn-sm <?= $filter_matkul == $mk['id'] ? 'btn-primary' : 'btn-secondary' ?>" style="text-decoration:none;">
-                    <?= htmlspecialchars($mk['kode_matkul']) ?> — <?= htmlspecialchars($mk['nama_matkul']) ?>
-                </a>
-            <?php endforeach; ?>
-        </div>
-        <?php endif; ?>
 
         <?php if (empty($grouped_assignments)): ?>
             <div class="glass-panel">
@@ -1576,6 +1626,75 @@ function filterBySemester(semester) {
         document.getElementById('chkAllKelas').checked = false;
     }
 }
+
+// Searchable Dropdowns for tab-tugas
+document.addEventListener('DOMContentLoaded', function() {
+    const dropdowns = document.querySelectorAll('.searchable-dropdown');
+    dropdowns.forEach(dropdown => {
+        const trigger = dropdown.querySelector('.dropdown-trigger');
+        const searchInput = dropdown.querySelector('.dropdown-search-input');
+        const options = dropdown.querySelectorAll('.dropdown-option:not(.no-results)');
+        
+        trigger.addEventListener('click', function(e) {
+            e.stopPropagation();
+            dropdowns.forEach(other => {
+                if (other !== dropdown) other.classList.remove('open');
+            });
+            dropdown.classList.toggle('open');
+            if (dropdown.classList.contains('open') && searchInput) {
+                searchInput.focus();
+                searchInput.value = '';
+                options.forEach(opt => opt.style.display = '');
+                const noResults = dropdown.querySelector('.dropdown-option.no-results');
+                if (noResults) noResults.style.display = 'none';
+            }
+        });
+        
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                const query = searchInput.value.toLowerCase().trim();
+                let visibleCount = 0;
+                options.forEach(opt => {
+                    const text = opt.textContent.toLowerCase();
+                    if (text.includes(query)) {
+                        opt.style.display = '';
+                        visibleCount++;
+                    } else {
+                        opt.style.display = 'none';
+                    }
+                });
+                const noResults = dropdown.querySelector('.dropdown-option.no-results');
+                if (noResults) {
+                    noResults.style.display = visibleCount === 0 ? 'block' : 'none';
+                }
+            });
+            searchInput.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+        }
+        
+        options.forEach(opt => {
+            opt.addEventListener('click', function() {
+                const value = opt.getAttribute('data-value');
+                const url = opt.getAttribute('data-url');
+                dropdown.querySelectorAll('.dropdown-option').forEach(o => o.classList.remove('selected'));
+                opt.classList.add('selected');
+                const triggerText = trigger.querySelector('.dropdown-trigger-text');
+                if (triggerText) triggerText.textContent = opt.textContent;
+                dropdown.classList.remove('open');
+                if (url) {
+                    window.location.href = url;
+                }
+            });
+        });
+    });
+    
+    document.addEventListener('click', function() {
+        dropdowns.forEach(dropdown => {
+            dropdown.classList.remove('open');
+        });
+    });
+});
 </script>
 
 </body>
