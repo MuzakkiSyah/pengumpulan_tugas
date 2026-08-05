@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Setup Akun Admin - KumpulTugas</title>
+    <title>Setup Akun Admin - SIPT RM</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>

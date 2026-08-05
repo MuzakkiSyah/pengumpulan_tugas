@@ -156,7 +156,7 @@ foreach ($all_assignments as $a) { if ($a['sub_id']) $total_kumpul++; }
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Mahasiswa - KumpulTugas</title>
+    <title>Dashboard Mahasiswa - SIPT RM</title>
     <link rel="stylesheet" href="style.css">
     <style>
         .stats-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; margin-bottom:2rem; }
@@ -172,7 +172,10 @@ foreach ($all_assignments as $a) { if ($a['sub_id']) $total_kumpul++; }
 <!-- Navbar -->
 <nav class="navbar">
     <div class="navbar-container">
-        <span class="navbar-brand">🎓 KumpulTugas</span>
+        <span class="navbar-brand" style="display:flex; align-items:center; gap:0.5rem;">
+            <img src="https://raw.githubusercontent.com/MuzakkiSyah/laboratoriumrm/47ccb8aadc7a14211df38be5f26f4e45f75a0f20/LOGO%20LAB-06%20-%20Copy.png" alt="SIPT RM Logo" style="height: 32px; object-fit: contain;">
+            SIPT RM
+        </span>
         <div class="navbar-user">
             <div class="user-info">
                 <div class="user-name"><?= htmlspecialchars($_SESSION['nama_lengkap']) ?></div>
@@ -423,6 +426,6 @@ foreach ($all_assignments as $a) { if ($a['sub_id']) $total_kumpul++; }
     <?php endif; ?>
 </div>
 
-<footer><p>KumpulTugas &copy; 2026 — Sistem Pengumpulan Tugas Mahasiswa</p></footer>
+<footer><p>SIPT RM &copy; 2026 — Sistem Informasi Pengumpulan Tugas RM</p></footer>
 </body>
 </html>

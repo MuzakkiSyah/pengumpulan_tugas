@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Sistem Pengumpulan Tugas</title>
+    <title>Login - SIPT RM</title>
     <link rel="stylesheet" href="style.css">
     <style>
         .login-card-hero {
@@ -55,13 +55,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             margin: -2.5rem -2.5rem 2rem -2.5rem;
         }
         .login-card-hero h1 {
-            font-size: 2rem;
             font-weight: 800;
             color: #FFFFFF;
             margin-bottom: .25rem;
         }
         .login-card-hero p { color: rgba(255,255,255,.7); font-size: .9rem; }
-        .login-card-hero .hero-logo { font-size: 2.5rem; margin-bottom: .5rem; }
+        .login-card-hero .hero-logo { margin-bottom: .5rem; }
     </style>
 </head>
 <body>
@@ -69,9 +68,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="auth-card">
         <!-- Hero Header -->
         <div class="login-card-hero">
-            <div class="hero-logo">🎓</div>
-            <h1>KumpulTugas</h1>
-            <p>Sistem Pengumpulan Tugas Mahasiswa</p>
+            <div class="hero-logo">
+                <img src="https://raw.githubusercontent.com/MuzakkiSyah/laboratoriumrm/47ccb8aadc7a14211df38be5f26f4e45f75a0f20/LOGO%20LAB-06%20-%20Copy.png" alt="SIPT RM Logo" style="height: 60px; object-fit: contain;">
+            </div>
+            <h1 style="font-size: 1.6rem; margin-top: 0.5rem; line-height: 1.3;">SIPT RM</h1>
+            <p>Sistem Informasi Pengumpulan Tugas RM</p>
         </div>
 
         <?php if (!empty($error)): ?>
