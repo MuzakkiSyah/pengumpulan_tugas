@@ -92,6 +92,17 @@ try {
     }
 }
 
+// Dynamic database migration: add kelas column to assignments table if not exists
+try {
+    $pdo->query("SELECT kelas FROM assignments LIMIT 1");
+} catch (PDOException $e) {
+    try {
+        $pdo->exec("ALTER TABLE assignments ADD COLUMN kelas VARCHAR(20) DEFAULT 'all' AFTER tipe_file");
+    } catch (PDOException $ex) {
+        // Ignore errors
+    }
+}
+
 
 // Fungsi bantu untuk mengecek login
 function check_login($required_role = null) {
