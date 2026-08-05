@@ -57,7 +57,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $upload_dir = __DIR__ . '/uploads/';
             if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
 
-            $safe_name  = preg_replace('/[^a-zA-Z0-9._-]/', '_', $file['name']);
+            $safe_judul = preg_replace('/[^a-zA-Z0-9\s_-]/', '', $assignment['judul']);
+            $safe_nama_mhs = preg_replace('/[^a-zA-Z0-9\s_-]/', '', $current_user['nama_lengkap']);
+            $safe_nim = preg_replace('/[^a-zA-Z0-9_-]/', '', $current_user['nomor_induk']);
+
+            $new_filename_base = $safe_judul . '_' . $safe_nama_mhs . '_' . $safe_nim;
+            $new_filename_base = preg_replace('/[\s_]+/', '_', $new_filename_base);
+            $new_filename_base = trim($new_filename_base, '_');
+
+            $new_filename = $new_filename_base . '.' . $file_ext;
+
+            $safe_name  = preg_replace('/[^a-zA-Z0-9._-]/', '_', $new_filename);
             $unique_name = 'A' . $assignment_id . '_U' . $user_id . '_' . time() . '_' . $safe_name;
             $dest_path  = $upload_dir . $unique_name;
 
@@ -73,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         VALUES (?, ?, ?, ?, 'dikumpul', NOW())
                         ON DUPLICATE KEY UPDATE nama_file = VALUES(nama_file), path_file = VALUES(path_file), status = 'dikumpul', waktu_unggah = NOW()
                     ");
-                    $stmt->execute([$assignment_id, $user_id, $file['name'], $dest_path]);
+                    $stmt->execute([$assignment_id, $user_id, $new_filename, $dest_path]);
                     $message = 'Tugas berhasil dikumpulkan! 🎉';
                     $message_type = 'success';
                 } catch (PDOException $e) {

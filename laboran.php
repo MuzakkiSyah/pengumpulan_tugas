@@ -28,9 +28,9 @@ if (isset($_SESSION['flash_message'])) {
 // =====================================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
-    // Validasi Akses Asisten Laboran (Hanya boleh add_assignment)
-    if ($current_jabatan === 'asisten_laboran' && $_POST['action'] !== 'add_assignment') {
-        $message = 'Akses ditolak! Asisten Laboran hanya diizinkan untuk membuat tugas.';
+    // Validasi Akses Asisten Laboran (Hanya boleh add_assignment dan grade_submission)
+    if ($current_jabatan === 'asisten_laboran' && !in_array($_POST['action'], ['add_assignment', 'grade_submission'])) {
+        $message = 'Akses ditolak! Asisten Laboran hanya diizinkan untuk membuat tugas dan menilai.';
         $message_type = 'error';
     }
     // --- Tambah Semester ---
@@ -842,7 +842,6 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                 <?php endif; ?>
                 
                 <!-- Grading Form Toggle -->
-                <?php if ($current_jabatan !== 'asisten_laboran'): ?>
                 <details style="margin-top:0.5rem; border-top:1px dashed var(--border-color); padding-top:0.5rem;">
                     <summary style="font-size:0.82rem; color:var(--accent-primary); cursor:pointer; font-weight:600; outline:none; user-select:none;">
                         📝 Atur Nilai & Komentar
@@ -875,7 +874,6 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                         <button type="submit" class="btn btn-primary btn-sm" style="width:100%; font-size:0.8rem; padding:0.45rem; border-radius:6px;">Simpan Nilai & Komentar</button>
                     </form>
                 </details>
-                <?php endif; ?>
             </div>
             <?php endforeach; ?>
         <?php endif; ?>
