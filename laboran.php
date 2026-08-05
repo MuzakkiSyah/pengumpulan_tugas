@@ -298,6 +298,85 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
     }
 
+    // --- Import Mata Kuliah via CSV ---
+    elseif ($_POST['action'] === 'import_matkul_csv') {
+        if (!isset($_FILES['csv_file_matkul']) || $_FILES['csv_file_matkul']['error'] !== UPLOAD_ERR_OK) {
+            $message = 'Harap pilih file CSV yang valid!';
+            $message_type = 'error';
+        } else {
+            $file = $_FILES['csv_file_matkul'];
+            $ext  = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            if (!in_array($ext, ['csv', 'txt'])) {
+                $message = 'Hanya file CSV (.csv) yang didukung!';
+                $message_type = 'error';
+            } else {
+                $handle = fopen($file['tmp_name'], 'r');
+                $imported = 0;
+                $skipped  = 0;
+                $errors   = [];
+                $row_num  = 0;
+
+                while (($row = fgetcsv($handle, 1000, ',')) !== false) {
+                    $row_num++;
+                    // Skip header row
+                    if ($row_num === 1) {
+                        if (strtolower(trim($row[0])) === 'kode_matkul') continue;
+                    }
+                    if (empty($row[0])) continue;
+
+                    $kode_matkul        = strtoupper(trim($row[0]));
+                    $nama_matkul        = trim($row[1] ?? '');
+                    $semester_akademik  = trim($row[2] ?? '');
+                    $tingkat_semester   = isset($row[3]) && trim($row[3]) !== '' ? (int)trim($row[3]) : 1;
+                    $deskripsi          = trim($row[4] ?? '');
+
+                    if (empty($kode_matkul) || empty($nama_matkul) || empty($semester_akademik)) {
+                        $errors[] = "Baris $row_num: Kode, Nama, atau Semester kosong.";
+                        $skipped++;
+                        continue;
+                    }
+                    if ($tingkat_semester < 1 || $tingkat_semester > 6) {
+                        $tingkat_semester = 1;
+                    }
+
+                    try {
+                        // 1. Dapatkan atau buat ID semester akademik
+                        $stmt_sem = $pdo->prepare("SELECT id FROM semesters WHERE nama_semester = ?");
+                        $stmt_sem->execute([$semester_akademik]);
+                        $sem = $stmt_sem->fetch();
+                        if ($sem) {
+                            $id_semester = $sem['id'];
+                        } else {
+                            $stmt_ins_sem = $pdo->prepare("INSERT INTO semesters (nama_semester, status) VALUES (?, 'aktif')");
+                            $stmt_ins_sem->execute([$semester_akademik]);
+                            $id_semester = $pdo->lastInsertId();
+                        }
+
+                        // 2. Insert mata kuliah
+                        $stmt = $pdo->prepare("INSERT INTO mata_kuliah (id_semester, kode_matkul, nama_matkul, semester, deskripsi, dibuat_oleh) VALUES (?, ?, ?, ?, ?, ?)");
+                        $stmt->execute([$id_semester, $kode_matkul, $nama_matkul, $tingkat_semester, $deskripsi ?: null, $user_id]);
+                        $imported++;
+                    } catch (PDOException $e) {
+                        if (isset($e->errorInfo[1]) && $e->errorInfo[1] == 1062) {
+                            $errors[] = "Baris $row_num ($kode_matkul): duplikat kode matkul pada semester akademik.";
+                        } else {
+                            $errors[] = "Baris $row_num: " . $e->getMessage();
+                        }
+                        $skipped++;
+                    }
+                }
+                fclose($handle);
+
+                $msg_parts = ["$imported mata kuliah berhasil diimpor."];
+                if ($skipped > 0) $msg_parts[] = "$skipped dilewati.";
+                if (!empty($errors)) $msg_parts[] = implode(' | ', array_slice($errors, 0, 3));
+
+                $message = implode(' ', $msg_parts);
+                $message_type = $imported > 0 ? 'success' : 'error';
+            }
+        }
+    }
+
     // --- Beri Nilai & Komentar (Grade Submission) ---
     elseif ($_POST['action'] === 'grade_submission') {
         $sub_id = (int)$_POST['submission_id'];
@@ -338,7 +417,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $active_tab = 'tugas';
         if (in_array($_POST['action'], ['add_semester','delete_semester','toggle_semester'])) {
             $active_tab = 'semester';
-        } elseif (in_array($_POST['action'], ['add_matkul','delete_matkul'])) {
+        } elseif (in_array($_POST['action'], ['add_matkul','delete_matkul','import_matkul_csv'])) {
             $active_tab = 'matkul';
         } elseif ($_POST['action'] === 'add_assignment') {
             $active_tab = 'buat-tugas';
@@ -368,6 +447,22 @@ if (isset($_GET['download_template'])) {
     fputcsv($out, ['Budi Santoso', '2024001', 'budi2024', '2024001', '1']);
     fputcsv($out, ['Siti Rahayu', '2024002', 'siti2024', '2024002', '2']);
     fputcsv($out, ['Ahmad Fauzi', '2024003', '', '', '3']); // kosong = default nim
+    fclose($out);
+    exit();
+}
+
+// Download template CSV Mata Kuliah
+if (isset($_GET['download_template_matkul'])) {
+    check_login('laboran');
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="template_mata_kuliah.csv"');
+    $out = fopen('php://output', 'w');
+    // BOM untuk Excel agar karakter Indonesia terbaca
+    fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
+    fputcsv($out, ['kode_matkul', 'nama_matkul', 'semester_akademik', 'tingkat_semester', 'deskripsi']);
+    fputcsv($out, ['CS101', 'Pengantar Teknologi Informasi', 'Ganjil 2026/2027', '1', 'Dasar-dasar teknologi informasi']);
+    fputcsv($out, ['CS201', 'Algoritma & Pemrograman', 'Ganjil 2026/2027', '2', 'Algoritma tingkat lanjut']);
+    fputcsv($out, ['CS302', 'Basis Data', 'Genap 2026/2027', '3', 'Pengantar konsep DBMS']);
     fclose($out);
     exit();
 }
@@ -760,6 +855,35 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
     <!-- TAB: KELOLA MATA KULIAH -->
     <!-- ============================================================ -->
     <div class="tab-content" id="tab-matkul">
+
+        <!-- Import CSV Matkul -->
+        <div class="glass-panel" style="margin-bottom:2rem;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem;">
+                <div>
+                    <h3 style="font-size:1.2rem; margin-bottom:.3rem;">📤 Import Mata Kuliah via CSV</h3>
+                    <p style="font-size:.88rem; color:var(--text-muted);">Upload file CSV berisi data mata kuliah. Kolom: <code style="background:var(--bg-input); padding:.1rem .4rem; border-radius:4px;">kode_matkul, nama_matkul, semester_akademik, tingkat_semester, deskripsi</code></p>
+                </div>
+                <a href="laboran.php?download_template_matkul=1" class="btn btn-secondary btn-sm" style="white-space:nowrap;">
+                    ⬇ Unduh Template CSV
+                </a>
+            </div>
+
+            <div style="background:var(--accent-gold-light); border:1.5px solid rgba(242,183,5,.3); border-radius:8px; padding:1rem; margin-bottom:1.25rem; font-size:.85rem; color:var(--accent-gold-dark);">
+                💡 <strong>Tips:</strong> Jika nama semester akademik (contoh: <em>Ganjil 2026/2027</em>) belum terdaftar di sistem, otomatis akan dibuat otomatis.
+            </div>
+
+            <form method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="action" value="import_matkul_csv">
+                <div style="display:flex; gap:.75rem; align-items:flex-end; flex-wrap:wrap;">
+                    <div style="flex:1; min-width:220px;">
+                        <label class="form-label">Pilih File CSV Mata Kuliah</label>
+                        <input type="file" name="csv_file_matkul" class="form-input" accept=".csv,.txt" required style="padding:.6rem;">
+                    </div>
+                    <button type="submit" class="btn btn-primary">📤 Import Sekarang</button>
+                </div>
+            </form>
+        </div>
+
         <!-- Form Tambah Matkul -->
         <div class="glass-panel" style="margin-bottom:2rem;">
             <h3 style="font-size:1.2rem;margin-bottom:1.5rem;">📁 Tambah Mata Kuliah Baru</h3>
@@ -1154,7 +1278,7 @@ function closeDetail() {
 <?php elseif (isset($_POST['action'])): ?>
     <?php if (in_array($_POST['action'], ['add_semester','delete_semester','toggle_semester'])): ?>
         switchTab('semester');
-    <?php elseif (in_array($_POST['action'], ['add_matkul','delete_matkul'])): ?>
+    <?php elseif (in_array($_POST['action'], ['add_matkul','delete_matkul','import_matkul_csv'])): ?>
         switchTab('matkul');
     <?php elseif ($_POST['action'] === 'add_assignment'): ?>
         switchTab('buat-tugas');
