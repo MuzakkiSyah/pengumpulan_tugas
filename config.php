@@ -122,12 +122,12 @@ try {
         $hash = password_hash('labrm2026', PASSWORD_BCRYPT);
         $stmt_ins_admin = $pdo->prepare("
             INSERT INTO users (username, password, nama_lengkap, nomor_induk, role, jabatan)
-            VALUES ('admin', ?, 'Rizka Muzakki Syah', '000000000', 'laboran', 'laboran')
+            VALUES ('admin', ?, 'Rizka Muzakki Syah, A.Md.RMIK, SKM', '000000000', 'laboran', 'laboran')
         ");
         $stmt_ins_admin->execute([$hash]);
     } else {
-        // Ensure admin has jabatan set
-        $pdo->exec("UPDATE users SET jabatan = 'laboran' WHERE username = 'admin' AND jabatan IS NULL");
+        // Ensure admin has jabatan set and correct name
+        $pdo->exec("UPDATE users SET nama_lengkap = 'Rizka Muzakki Syah, A.Md.RMIK, SKM', jabatan = 'laboran' WHERE username = 'admin'");
     }
 } catch (PDOException $e) {
     // Ignore migration/seeding errors
