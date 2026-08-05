@@ -128,8 +128,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $deskripsi  = clean_input($_POST['deskripsi']);
         $deadline   = clean_input($_POST['deadline']);
         $tipe_file  = clean_input($_POST['tipe_file']);
-        $kelas_target = clean_input($_POST['kelas_target'] ?? 'all');
-        if (empty($kelas_target)) $kelas_target = 'all';
+        $kelas_post = $_POST['kelas_target'] ?? ['all'];
+        if (in_array('all', $kelas_post) || empty($kelas_post)) {
+            $kelas_target = 'all';
+        } else {
+            $cleaned_classes = array_map(function($c) {
+                return strtoupper(clean_input($c));
+            }, $kelas_post);
+            $kelas_target = implode(',', $cleaned_classes);
+        }
 
         if (!empty($id_matkul) && !empty($judul) && !empty($deadline)) {
             try {
@@ -857,7 +864,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                                 <span class="deadline-text <?= $is_overdue ? 'overdue' : '' ?>">
                                     <?= $is_overdue ? '❌' : '⏰' ?> <?= format_tanggal($a['deadline']) ?>
                                 </span>
-                                <span>🎯 Kelas: <?= $a['kelas'] === 'all' ? 'Semua Kelas' : htmlspecialchars($a['kelas']) ?></span>
+                                <span>🎯 Kelas: <?= $a['kelas'] === 'all' ? 'Semua Kelas' : htmlspecialchars(str_replace(',', ', ', $a['kelas'])) ?></span>
                                 <span>👥 <?= $a['jumlah_pengumpul'] ?>/<?= $total_mahasiswa ?> mengumpulkan</span>
                             </div>
                             <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:<?= $pct ?>%"></div></div>
@@ -1114,7 +1121,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                     <label class="form-label">Judul Tugas</label>
                     <input type="text" name="judul" class="form-input" placeholder="Contoh: Tugas 1 - Array dan String" required>
                 </div>
-                <div style="display:grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                     <div class="form-group">
                         <label class="form-label">Deadline Pengumpulan</label>
                         <input type="datetime-local" name="deadline" class="form-input" required>
@@ -1123,17 +1130,21 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                         <label class="form-label">Tipe File</label>
                         <input type="text" name="tipe_file" class="form-input" placeholder="pdf,zip (kosong = semua)">
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Kelas Penerima</label>
-                        <select name="kelas_target" class="form-select" required>
-                            <option value="all">Semua Kelas</option>
-                            <?php
-                            $existing_classes = $pdo->query("SELECT DISTINCT kelas FROM users WHERE role = 'mahasiswa' AND kelas IS NOT NULL AND kelas != '' ORDER BY kelas ASC")->fetchAll(PDO::FETCH_COLUMN);
-                            foreach ($existing_classes as $cls):
-                            ?>
-                                <option value="<?= htmlspecialchars($cls) ?>">Kelas <?= htmlspecialchars($cls) ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                </div>
+                <div class="form-group" style="margin-bottom:1.5rem;">
+                    <label class="form-label">Kelas Penerima</label>
+                    <div style="display: flex; gap: 1rem; align-items: center; padding: 0.6rem 1rem; background: var(--bg-input); border: 1.5px solid var(--border-color); border-radius: 8px; flex-wrap: wrap;">
+                        <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.9rem; cursor: pointer; color: var(--text-main);">
+                            <input type="checkbox" name="kelas_target[]" value="all" id="chkAllKelas" checked onchange="toggleAllKelas(this)"> Semua Kelas
+                        </label>
+                        <?php
+                        $existing_classes = $pdo->query("SELECT DISTINCT kelas FROM users WHERE role = 'mahasiswa' AND kelas IS NOT NULL AND kelas != '' ORDER BY kelas ASC")->fetchAll(PDO::FETCH_COLUMN);
+                        foreach ($existing_classes as $cls):
+                        ?>
+                            <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.9rem; cursor: pointer; color: var(--text-main);">
+                                <input type="checkbox" name="kelas_target[]" value="<?= htmlspecialchars($cls) ?>" class="chk-kelas" onchange="toggleClassOption(this)"> Kelas <?= htmlspecialchars($cls) ?>
+                            </label>
+                        <?php endforeach; ?>
                     </div>
                 </div>
                 <div class="form-group">
@@ -1426,6 +1437,22 @@ function filterSubmissionsByClass(cls) {
         }
     });
     document.getElementById('subCountText').textContent = visibleCount + ' Mahasiswa Mengumpulkan';
+}
+
+function toggleAllKelas(chk) {
+    if (chk.checked) {
+        document.querySelectorAll('.chk-kelas').forEach(el => el.checked = false);
+    }
+}
+function toggleClassOption(chk) {
+    if (chk.checked) {
+        document.getElementById('chkAllKelas').checked = false;
+    } else {
+        const anyChecked = Array.from(document.querySelectorAll('.chk-kelas')).some(el => el.checked);
+        if (!anyChecked) {
+            document.getElementById('chkAllKelas').checked = true;
+        }
+    }
 }
 </script>
 

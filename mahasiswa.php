@@ -109,7 +109,7 @@ if ($filter_semester > 0) {
 $all_matkul = $stmt->fetchAll();
 
 // Bangun WHERE clause untuk tugas
-$where_clauses = ["s.status = 'aktif'", "mk.semester = ?", "(a.kelas = 'all' OR a.kelas = ?)"];
+$where_clauses = ["s.status = 'aktif'", "mk.semester = ?", "(a.kelas = 'all' OR FIND_IN_SET(?, a.kelas) > 0)"];
 $params = [$user_id, $student_semester, $current_user['kelas'] ?? 'A'];
 if ($filter_matkul > 0) {
     $where_clauses[] = "a.id_matkul = ?";
@@ -296,7 +296,7 @@ foreach ($all_assignments as $a) { if ($a['sub_id']) $total_kumpul++; }
 
                     <div class="tugas-meta">
                         <span>⏰ <?= format_tanggal($a['deadline']) ?></span>
-                        <span>🎯 Kelas: <?= $a['kelas'] === 'all' ? 'Semua Kelas' : htmlspecialchars($a['kelas']) ?></span>
+                        <span>🎯 Kelas: <?= $a['kelas'] === 'all' ? 'Semua Kelas' : htmlspecialchars(str_replace(',', ', ', $a['kelas'])) ?></span>
                         <?php if (!empty($a['tipe_file']) && $a['tipe_file'] !== 'all'): ?>
                             <span>📎 <?= htmlspecialchars(strtoupper(str_replace(',', ', ', $a['tipe_file']))) ?></span>
                         <?php else: ?>
