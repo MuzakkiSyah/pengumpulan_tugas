@@ -1712,7 +1712,13 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                     </tbody>
                 </table>
             </div>
-            <p style="font-size:.82rem; color:var(--text-muted); margin-top:.75rem;">Total: <?= count($daftar_mhs) ?> mahasiswa terdaftar</p>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; flex-wrap:wrap; gap:1rem;">
+                <p id="mhsPageInfo" style="font-size:.85rem; color:var(--text-muted); margin:0;">Total: <?= count($daftar_mhs) ?> mahasiswa terdaftar</p>
+                <div style="display:flex; gap:0.5rem; align-items:center;">
+                    <button type="button" id="mhsPrevBtn" class="btn btn-secondary btn-sm" onclick="mhsPrevPage()" style="font-size:0.8rem; padding:0.35rem 0.65rem;">◀ Sebelumnya</button>
+                    <button type="button" id="mhsNextBtn" class="btn btn-secondary btn-sm" onclick="mhsNextPage()" style="font-size:0.8rem; padding:0.35rem 0.65rem;">Selanjutnya ▶</button>
+                </div>
+            </div>
         <?php endif; ?>
 
         <!-- Modal Edit Mahasiswa (hidden by default) -->
@@ -2000,12 +2006,78 @@ function closeDetail() {
     <?php endif; ?>
 <?php endif; ?>
 
+let mhsCurrentPage = 1;
+const mhsPerPage = 10;
+
 function filterMhs() {
     const q = document.getElementById('searchMhs').value.toLowerCase();
-    document.querySelectorAll('#mhsTable .mhs-row').forEach(row => {
+    const rows = document.querySelectorAll('#mhsTable .mhs-row');
+    rows.forEach(row => {
         const text = row.innerText.toLowerCase();
-        row.style.display = text.includes(q) ? '' : 'none';
+        if (text.includes(q)) {
+            row.classList.remove('search-hidden');
+        } else {
+            row.classList.add('search-hidden');
+        }
     });
+    mhsCurrentPage = 1;
+    renderMhsPagination();
+}
+
+function renderMhsPagination() {
+    const allRows = Array.from(document.querySelectorAll('#mhsTable .mhs-row'));
+    if (allRows.length === 0) return;
+    
+    const visibleRows = allRows.filter(row => !row.classList.contains('search-hidden'));
+    const totalRows = visibleRows.length;
+    const totalPages = Math.ceil(totalRows / mhsPerPage) || 1;
+
+    if (mhsCurrentPage > totalPages) {
+        mhsCurrentPage = totalPages;
+    }
+
+    visibleRows.forEach((row, index) => {
+        const start = (mhsCurrentPage - 1) * mhsPerPage;
+        const end = start + mhsPerPage;
+        if (index >= start && index < end) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+
+    allRows.forEach(row => {
+        if (row.classList.contains('search-hidden')) {
+            row.style.display = 'none';
+        }
+    });
+
+    const prevBtn = document.getElementById('mhsPrevBtn');
+    const nextBtn = document.getElementById('mhsNextBtn');
+    const infoText = document.getElementById('mhsPageInfo');
+
+    if (prevBtn && nextBtn && infoText) {
+        prevBtn.disabled = (mhsCurrentPage === 1);
+        nextBtn.disabled = (mhsCurrentPage === totalPages);
+        infoText.textContent = `Halaman ${mhsCurrentPage} dari ${totalPages} (${totalRows} Mahasiswa)`;
+    }
+}
+
+function mhsPrevPage() {
+    if (mhsCurrentPage > 1) {
+        mhsCurrentPage--;
+        renderMhsPagination();
+    }
+}
+
+function mhsNextPage() {
+    const allRows = Array.from(document.querySelectorAll('#mhsTable .mhs-row'));
+    const visibleRows = allRows.filter(row => !row.classList.contains('search-hidden'));
+    const totalPages = Math.ceil(visibleRows.length / mhsPerPage) || 1;
+    if (mhsCurrentPage < totalPages) {
+        mhsCurrentPage++;
+        renderMhsPagination();
+    }
 }
 
 function detectProdiFromNim(nim) {
@@ -2349,6 +2421,7 @@ function filterMatkulExport() {
 
 document.addEventListener("DOMContentLoaded", function() {
     filterMatkulExport();
+    renderMhsPagination();
 });
 function openPreviewModal(url, filename) {
     document.getElementById('previewFileTitle').textContent = '👁️ Preview: ' + filename;
