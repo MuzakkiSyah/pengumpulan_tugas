@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create'])) {
             $hash = password_hash('labrm2026', PASSWORD_BCRYPT);
             $stmt = $pdo->prepare("
                 INSERT INTO users (username, password, nama_lengkap, nomor_induk, role)
-                VALUES ('admin', ?, 'Rizka Muzakki Syah', '000000000', 'laboran')
+                VALUES ('admin', ?, 'Rizka Muzakki Syah', '0686.89.2026.144', 'laboran')
             ");
             $stmt->execute([$hash]);
             $done = true;
