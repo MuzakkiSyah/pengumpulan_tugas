@@ -628,7 +628,7 @@ if (isset($_GET['export_excel_grades'])) {
         // Query untuk satu mata kuliah saja
         $stmt = $pdo->prepare("
             SELECT u.nomor_induk AS nim, u.nama_lengkap AS nama_mahasiswa, u.kelas AS kelas_mahasiswa, 
-                   mk.nama_matkul, a.judul AS nama_tugas, sub.nilai
+                   mk.nama_matkul, a.id AS assignment_id, a.judul AS nama_tugas, sub.nilai
             FROM users u
             JOIN mata_kuliah mk ON mk.id = ?
             JOIN assignments a ON a.id_matkul = mk.id 
@@ -645,7 +645,7 @@ if (isset($_GET['export_excel_grades'])) {
         // Query untuk semua mata kuliah di semester tingkat & prodi tersebut pada semester akademik aktif
         $stmt = $pdo->prepare("
             SELECT u.nomor_induk AS nim, u.nama_lengkap AS nama_mahasiswa, u.kelas AS kelas_mahasiswa, 
-                   mk.nama_matkul, a.judul AS nama_tugas, sub.nilai
+                   mk.nama_matkul, a.id AS assignment_id, a.judul AS nama_tugas, sub.nilai
             FROM users u
             JOIN mata_kuliah mk ON mk.id_semester = ? AND mk.prodi = ? AND mk.semester = ?
             JOIN assignments a ON a.id_matkul = mk.id 
@@ -666,29 +666,95 @@ if (isset($_GET['export_excel_grades'])) {
     $stmt_sem->execute([$active_semester_id]);
     $sem_name = $stmt_sem->fetchColumn() ?: "Semester Aktif";
     
-    $excel_data = [
-        ['REKAP NILAI MAHASISWA'],
-        ['Semester Akademik:', $sem_name],
-        ['Semester Tingkat:', 'Semester ' . $semester_tingkat],
-        ['Program Studi:', $prodi],
-        [],
-        ['NIM', 'Nama Mahasiswa', 'Kelas', 'Mata Kuliah', 'Nama Tugas', 'Nilai']
-    ];
+    $filename = 'rekap_nilai_semester_' . $semester_tingkat . '_' . strtolower(str_replace(' ', '_', $prodi)) . '_' . date('Ymd_His') . '.xlsx';
     
-    foreach ($rows as $r) {
-        $nilai_display = ($r['nilai'] !== null) ? (int)$r['nilai'] : 'Belum Dinilai';
-        $excel_data[] = [
-            $r['nim'],
-            $r['nama_mahasiswa'],
-            $r['kelas_mahasiswa'],
-            $r['nama_matkul'],
-            $r['nama_tugas'],
-            $nilai_display
+    if (empty($rows)) {
+        $excel_data = [
+            ['REKAP NILAI MAHASISWA'],
+            ['Semester Akademik:', $sem_name],
+            ['Semester Tingkat:', 'Semester ' . $semester_tingkat],
+            ['Program Studi:', $prodi],
+            [],
+            ['Tidak ada data nilai atau tugas yang ditemukan untuk kriteria ini.']
         ];
+        \Shuchkin\SimpleXLSXGen::fromArray($excel_data)->downloadAs($filename);
+        exit();
     }
     
-    $filename = 'rekap_nilai_semester_' . $semester_tingkat . '_' . strtolower(str_replace(' ', '_', $prodi)) . '_' . date('Ymd_His') . '.xlsx';
-    \Shuchkin\SimpleXLSXGen::fromArray($excel_data)->downloadAs($filename);
+    // Grouping data per kelas
+    $data_per_kelas = [];
+    $assignments_per_kelas = [];
+    
+    foreach ($rows as $r) {
+        $kelas = $r['kelas_mahasiswa'] ?: 'Tanpa Kelas';
+        $nim = $r['nim'];
+        $assign_id = $r['assignment_id'];
+        
+        // Group assignments by class to maintain order
+        if (!isset($assignments_per_kelas[$kelas][$assign_id])) {
+            $assignments_per_kelas[$kelas][$assign_id] = [
+                'nama_matkul' => $r['nama_matkul'],
+                'nama_tugas'  => $r['nama_tugas']
+            ];
+        }
+        
+        // Initialize student if not set
+        if (!isset($data_per_kelas[$kelas][$nim])) {
+            $data_per_kelas[$kelas][$nim] = [
+                'nim'  => $nim,
+                'nama' => $r['nama_mahasiswa'],
+                'nilai' => []
+            ];
+        }
+        
+        // Store grade
+        $data_per_kelas[$kelas][$nim]['nilai'][$assign_id] = $r['nilai'];
+    }
+    
+    // Create new XLSX generator
+    $xlsx = new \Shuchkin\SimpleXLSXGen();
+    
+    foreach ($data_per_kelas as $kelas => $students) {
+        $sheet_rows = [
+            ['REKAP NILAI MAHASISWA - KELAS ' . $kelas],
+            ['Semester Akademik:', $sem_name],
+            ['Semester Tingkat:', 'Semester ' . $semester_tingkat],
+            ['Program Studi:', $prodi],
+            [],
+        ];
+        
+        // Header Row: NIM, Nama Mahasiswa, [Assignments...]
+        $header_row = ['NIM', 'Nama Mahasiswa'];
+        $class_assignments = $assignments_per_kelas[$kelas];
+        foreach ($class_assignments as $assign_id => $assign_info) {
+            if ($matkul_id > 0) {
+                $header_row[] = $assign_info['nama_tugas'];
+            } else {
+                $header_row[] = $assign_info['nama_matkul'] . ' - ' . $assign_info['nama_tugas'];
+            }
+        }
+        $sheet_rows[] = $header_row;
+        
+        // Data Rows for each student
+        foreach ($students as $nim => $student) {
+            $row = [
+                $student['nim'],
+                $student['nama']
+            ];
+            
+            foreach ($class_assignments as $assign_id => $assign_info) {
+                $nilai = $student['nilai'][$assign_id] ?? null;
+                $row[] = ($nilai !== null) ? (int)$nilai : 'Belum Dinilai';
+            }
+            $sheet_rows[] = $row;
+        }
+        
+        // Clean sheet name (Excel limits sheet names to 31 chars and bans certain characters)
+        $sheet_name = preg_replace('/[\/\\\?\*\:\[\]]/', '_', $kelas);
+        $xlsx->addSheet($sheet_rows, $sheet_name);
+    }
+    
+    $xlsx->downloadAs($filename);
     exit();
 }
 // =====================================================================
