@@ -35,6 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Setup Akun Admin - Sistem Informasi Pengumpulan Tugas Lab RM</title>
+    <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/MuzakkiSyah/laboratoriumrm/47ccb8aadc7a14211df38be5f26f4e45f75a0f20/LOGO%20LAB-06%20-%20Copy.png">
     <link rel="stylesheet" href="style.css?v=<?= filemtime(__DIR__ . '/style.css') ?>">
 </head>
 <body>
