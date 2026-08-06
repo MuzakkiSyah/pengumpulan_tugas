@@ -876,6 +876,11 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
         </div>
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; flex-wrap:wrap; gap:.5rem;">
             <div style="font-size:.88rem;font-weight:600;color:var(--text-muted);" id="subCountText"><?= count($detail_submissions) ?> Mahasiswa Mengumpulkan</div>
+            <?php if (!empty($detail_submissions)): ?>
+                <a href="download.php?assignment_id=<?= $detail_assignment['id'] ?>" class="btn btn-secondary btn-sm" style="text-decoration:none;" title="Download semua pengumpulan tugas ini sebagai ZIP">
+                    📦 Download ZIP
+                </a>
+            <?php endif; ?>
         </div>
 
         <?php if (!empty($detail_submissions)): ?>
@@ -1185,7 +1190,12 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                         <span class="matkul-code"><?= htmlspecialchars($group['info']['kode_matkul']) ?></span>
                         📁 <?= htmlspecialchars($group['info']['nama_matkul']) ?>
                     </div>
-                    <span style="font-size:.82rem;color:var(--text-muted);"><?= htmlspecialchars($group['info']['nama_semester']) ?> · <?= count($group['tugas']) ?> tugas</span>
+                    <div style="display:flex; align-items:center; gap:0.75rem;">
+                        <span style="font-size:.82rem;color:rgba(255,255,255,0.85);"><?= htmlspecialchars($group['info']['nama_semester']) ?> · <?= count($group['tugas']) ?> tugas</span>
+                        <a href="download.php?matkul_id=<?= $mk_id ?>" class="btn btn-secondary btn-sm" style="text-decoration:none; background:rgba(255,255,255,0.2); border:1px solid rgba(255,255,255,0.3); color:#fff; font-size:0.78rem; padding:0.25rem 0.5rem;" title="Download semua tugas mata kuliah ini sebagai ZIP">
+                            📦 Backup ZIP
+                        </a>
+                    </div>
                 </div>
                 <div class="matkul-body">
                     <?php foreach ($group['tugas'] as $a):
@@ -1206,6 +1216,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                         </div>
                         <div class="action-btns">
                             <a href="laboran.php?detail=<?= $a['id'] ?>&semester=<?= $filter_semester ?>&matkul=<?= $filter_matkul ?>" class="btn btn-secondary btn-sm" style="text-decoration:none;">👁 Detail</a>
+                            <a href="download.php?assignment_id=<?= $a['id'] ?>" class="btn btn-secondary btn-sm" style="text-decoration:none;" title="Download semua pengumpulan tugas ini sebagai ZIP">📦 Zip</a>
                             <?php if ($current_jabatan !== 'asisten_laboran'): ?>
                             <form method="POST" onsubmit="return confirm('Hapus tugas ini?')">
                                 <input type="hidden" name="action" value="delete_assignment">
