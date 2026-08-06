@@ -99,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </form>
 
         <p style="margin-top:1.5rem; text-align:center; font-size:.82rem; color:var(--text-muted);">
-            Belum punya akun? Hubungi <strong>Asisten Laboran</strong> untuk mendapatkan akun.
+            Belum punya akun? Hubungi <strong>Laboran / Asisten Laboran</strong> untuk mendapatkan akun.
         </p>
     </div>
 </div>
