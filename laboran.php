@@ -609,6 +609,85 @@ if (isset($_GET['download_template_matkul'])) {
     \Shuchkin\SimpleXLSXGen::fromArray($data)->downloadAs('template_mata_kuliah.xlsx');
     exit();
 }
+
+// Export Excel Nilai per Semester
+if (isset($_GET['export_excel_grades'])) {
+    check_login('laboran');
+    
+    $semester_id = isset($_GET['export_semester']) ? (int)$_GET['export_semester'] : 0;
+    $prodi = isset($_GET['export_prodi']) ? trim($_GET['export_prodi']) : '';
+    $matkul_id = isset($_GET['export_matkul']) ? (int)$_GET['export_matkul'] : 0;
+    
+    if (!$semester_id || !$prodi) {
+        die("Semester dan Program Studi harus dipilih.");
+    }
+    
+    if ($matkul_id > 0) {
+        // Query untuk satu mata kuliah saja
+        $stmt = $pdo->prepare("
+            SELECT u.nomor_induk AS nim, u.nama_lengkap AS nama_mahasiswa, u.kelas AS kelas_mahasiswa, 
+                   mk.nama_matkul, a.judul AS nama_tugas, sub.nilai
+            FROM users u
+            JOIN mata_kuliah mk ON mk.id = ?
+            JOIN assignments a ON a.id_matkul = mk.id 
+                AND (a.prodi = 'all' OR a.prodi = u.prodi)
+                AND (a.kelas = 'all' OR a.kelas = u.kelas)
+            LEFT JOIN submissions sub ON sub.id_assignment = a.id AND sub.id_mahasiswa = u.id
+            WHERE u.role = 'mahasiswa' 
+              AND u.prodi = mk.prodi 
+              AND u.semester = mk.semester
+            ORDER BY u.kelas ASC, u.nomor_induk ASC, a.created_at ASC
+        ");
+        $stmt->execute([$matkul_id]);
+    } else {
+        // Query untuk semua mata kuliah di semester & prodi tersebut
+        $stmt = $pdo->prepare("
+            SELECT u.nomor_induk AS nim, u.nama_lengkap AS nama_mahasiswa, u.kelas AS kelas_mahasiswa, 
+                   mk.nama_matkul, a.judul AS nama_tugas, sub.nilai
+            FROM users u
+            JOIN mata_kuliah mk ON mk.id_semester = ? AND mk.prodi = ?
+            JOIN assignments a ON a.id_matkul = mk.id 
+                AND (a.prodi = 'all' OR a.prodi = u.prodi)
+                AND (a.kelas = 'all' OR a.kelas = u.kelas)
+            LEFT JOIN submissions sub ON sub.id_assignment = a.id AND sub.id_mahasiswa = u.id
+            WHERE u.role = 'mahasiswa' 
+              AND u.prodi = mk.prodi 
+              AND u.semester = mk.semester
+            ORDER BY mk.nama_matkul ASC, u.kelas ASC, u.nomor_induk ASC, a.created_at ASC
+        ");
+        $stmt->execute([$semester_id, $prodi]);
+    }
+    
+    $rows = $stmt->fetchAll();
+    
+    $stmt_sem = $pdo->prepare("SELECT nama_semester FROM semesters WHERE id = ?");
+    $stmt_sem->execute([$semester_id]);
+    $sem_name = $stmt_sem->fetchColumn() ?: "Semester";
+    
+    $excel_data = [
+        ['REKAP NILAI MAHASISWA'],
+        ['Semester:', $sem_name],
+        ['Program Studi:', $prodi],
+        [],
+        ['NIM', 'Nama Mahasiswa', 'Kelas', 'Mata Kuliah', 'Nama Tugas', 'Nilai']
+    ];
+    
+    foreach ($rows as $r) {
+        $nilai_display = ($r['nilai'] !== null) ? (int)$r['nilai'] : 'Belum Dinilai';
+        $excel_data[] = [
+            $r['nim'],
+            $r['nama_mahasiswa'],
+            $r['kelas_mahasiswa'],
+            $r['nama_matkul'],
+            $r['nama_tugas'],
+            $nilai_display
+        ];
+    }
+    
+    $filename = 'rekap_nilai_' . strtolower(str_replace(' ', '_', $prodi)) . '_' . date('Ymd_His') . '.xlsx';
+    \Shuchkin\SimpleXLSXGen::fromArray($excel_data)->downloadAs($filename);
+    exit();
+}
 // =====================================================================
 // AMBIL DATA
 // =====================================================================
@@ -988,6 +1067,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
         <?php if (in_array($current_jabatan, ['laboran', 'kepala_laboratorium'])): ?>
             <button class="tab-btn" id="tab-btn-staff"      onclick="switchTab('staff')">👥 Role Access / Staff</button>
         <?php endif; ?>
+        <button class="tab-btn" id="tab-btn-rekap-nilai" onclick="switchTab('rekap-nilai')">📊 Rekap Nilai</button>
     </div>
 
     <!-- ============================================================ -->
@@ -1794,6 +1874,59 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
     </div>
     <?php endif; ?>
 
+    <!-- ============================================================ -->
+    <!-- TAB: REKAP NILAI -->
+    <!-- ============================================================ -->
+    <div class="tab-content" id="tab-rekap-nilai">
+        <div class="glass-panel" style="margin-bottom:2rem;">
+            <h3 style="font-size:1.2rem; margin-bottom:0.5rem;">📊 Export Rekap Nilai ke Excel</h3>
+            <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:1.5rem;">
+                Unduh rekap nilai mahasiswa dalam format Excel (.xlsx) per semester, program studi, dan mata kuliah.
+            </p>
+            <form method="GET" action="laboran.php">
+                <input type="hidden" name="export_excel_grades" value="1">
+                
+                <div class="form-row-3" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom:1.5rem;">
+                    <div class="form-group">
+                        <label class="form-label">Pilih Semester</label>
+                        <select name="export_semester" id="export_semester" class="form-select" required onchange="filterMatkulExport()">
+                            <?php foreach ($semesters as $sem): ?>
+                                <option value="<?= $sem['id'] ?>" <?= $sem['status'] === 'aktif' ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($sem['nama_semester']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Program Studi</label>
+                        <select name="export_prodi" id="export_prodi" class="form-select" required onchange="filterMatkulExport()">
+                            <option value="D3 RMIK">D3 RMIK</option>
+                            <option value="D4 MIK">D4 MIK</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Mata Kuliah</label>
+                        <select name="export_matkul" id="export_matkul" class="form-select">
+                            <option value="0" data-semester="all" data-prodi="all">-- Semua Mata Kuliah --</option>
+                            <?php
+                            $all_mk = $pdo->query("SELECT id, nama_matkul, id_semester, prodi FROM mata_kuliah ORDER BY nama_matkul ASC")->fetchAll();
+                            foreach ($all_mk as $mk):
+                            ?>
+                                <option value="<?= $mk['id'] ?>" data-semester="<?= $mk['id_semester'] ?>" data-prodi="<?= htmlspecialchars($mk['prodi']) ?>">
+                                    <?= htmlspecialchars($mk['nama_matkul']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">📥 Export ke Excel</button>
+            </form>
+        </div>
+    </div>
+
 </div>
 
 <footer><p>Sistem Informasi Pengumpulan Tugas Lab RM &copy; 2026</p></footer>
@@ -2143,6 +2276,46 @@ document.addEventListener('DOMContentLoaded', function() {
             dropdown.classList.remove('open');
         });
     });
+});
+
+function filterMatkulExport() {
+    const semesterVal = document.getElementById('export_semester').value;
+    const prodiVal = document.getElementById('export_prodi').value;
+    const matkulSelect = document.getElementById('export_matkul');
+    
+    if (!matkulSelect) return;
+    
+    // Store original options in a global variable on first execution
+    if (!window.masterMatkulOptions) {
+        window.masterMatkulOptions = Array.from(matkulSelect.options).map(opt => ({
+            value: opt.value,
+            text: opt.textContent,
+            semester: opt.getAttribute('data-semester'),
+            prodi: opt.getAttribute('data-prodi')
+        }));
+    }
+    
+    // Clear the dropdown
+    matkulSelect.innerHTML = '';
+    
+    // Filter and append matching options
+    window.masterMatkulOptions.forEach(opt => {
+        const matchSemester = (opt.value === "0" || opt.semester === semesterVal);
+        const matchProdi = (opt.value === "0" || opt.prodi === prodiVal);
+        
+        if (matchSemester && matchProdi) {
+            const newOpt = document.createElement('option');
+            newOpt.value = opt.value;
+            newOpt.textContent = opt.text;
+            newOpt.setAttribute('data-semester', opt.semester);
+            newOpt.setAttribute('data-prodi', opt.prodi);
+            matkulSelect.appendChild(newOpt);
+        }
+    });
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    filterMatkulExport();
 });
 </script>
 
