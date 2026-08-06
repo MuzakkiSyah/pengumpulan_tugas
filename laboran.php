@@ -758,12 +758,12 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
 </nav>
 
 <!-- Detail Side Panel -->
-<div class="detail-overlay <?= $detail_assignment ? 'open' : '' ?>" id="detailOverlay" onclick="closeDetail()"></div>
-<div class="detail-panel <?= $detail_assignment ? 'open' : '' ?>" id="detailPanel">
+<div class="detail-overlay" id="detailOverlay" data-should-open="<?= $detail_assignment ? 'true' : 'false' ?>" onclick="closeDetail()"></div>
+<div class="detail-panel" id="detailPanel" data-should-open="<?= $detail_assignment ? 'true' : 'false' ?>">
     <?php if ($detail_assignment): ?>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
             <h3 style="font-size:1.1rem;">Detail Pengumpulan</h3>
-            <a href="laboran.php?<?= http_build_query(array_filter(['semester'=>$filter_semester,'matkul'=>$filter_matkul])) ?>" class="btn btn-secondary btn-sm" style="text-decoration:none;">✕ Tutup</a>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="closeDetail()">✕ Tutup</button>
         </div>
         <div style="margin-bottom:1.25rem;">
             <h4 style="margin-bottom:.3rem;"><?= htmlspecialchars($detail_assignment['judul']) ?></h4>
@@ -800,14 +800,13 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                     </select>
                 </div>
                 
-                <!-- Sort Select -->
+                <!-- Prodi Filter -->
                 <div style="display:flex; align-items:center; gap:.3rem; flex:1; min-width:160px;">
-                    <label class="form-label" style="margin-bottom:0; font-size:.8rem; white-space:nowrap;">Urutkan:</label>
-                    <select class="form-select" id="sortSub" style="padding:.3rem 1.75rem .3rem .5rem; font-size:.8rem; height:auto; background-position: right 0.5rem center;" onchange="updateSubmissionsList()">
-                        <option value="time">Waktu Unggah ⏱</option>
-                        <option value="name">Nama Mahasiswa 👤</option>
-                        <option value="class">Kelas 🏫</option>
-                        <option value="prodi">Program Studi 🎓</option>
+                    <label class="form-label" style="margin-bottom:0; font-size:.8rem; white-space:nowrap;">Prodi:</label>
+                    <select class="form-select" id="filterProdiSub" style="padding:.3rem 1.75rem .3rem .5rem; font-size:.8rem; height:auto; background-position: right 0.5rem center;" onchange="updateSubmissionsList()">
+                        <option value="all">Semua Prodi</option>
+                        <option value="D3 RMIK">D3 RMIK</option>
+                        <option value="D4 MIK">D4 MIK</option>
                     </select>
                 </div>
             </div>
@@ -1616,8 +1615,8 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
         <?php endif; ?>
 
         <!-- Modal Edit Mahasiswa (hidden by default) -->
-        <div id="resetModal" style="display:none; position:fixed; inset:0; background:rgba(11,78,162,.15); backdrop-filter:blur(4px); z-index:300; justify-content:center; align-items:center;">
-            <div style="background:#fff; border:1.5px solid var(--border-color); border-radius:16px; padding:2rem; width:100%; max-width:420px; box-shadow:var(--shadow-lg);">
+        <div id="resetModal" class="modal-container">
+            <div class="modal-content">
                 <h4 style="margin-bottom:1.25rem;">📝 Edit Data & Reset Password Mahasiswa</h4>
                 <p id="resetMhsName" style="color:var(--text-muted); font-size:.9rem; margin-bottom:1.25rem;"></p>
                 <form method="POST">
@@ -1757,8 +1756,8 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
         </div>
 
         <!-- Modal Edit Staff (hidden by default) -->
-        <div id="staffModal" style="display:none; position:fixed; inset:0; background:rgba(11,78,162,.15); backdrop-filter:blur(4px); z-index:300; justify-content:center; align-items:center;">
-            <div style="background:#fff; border:1.5px solid var(--border-color); border-radius:16px; padding:2rem; width:100%; max-width:420px; box-shadow:var(--shadow-lg);">
+        <div id="staffModal" class="modal-container">
+            <div class="modal-content">
                 <h4 style="margin-bottom:1.25rem;">📝 Edit Data & Reset Password Staff</h4>
                 <p id="editStaffName" style="color:var(--text-muted); font-size:.9rem; margin-bottom:1.25rem;"></p>
                 <form method="POST">
@@ -1807,8 +1806,15 @@ function switchTab(name) {
     document.getElementById('tab-btn-' + name).classList.add('active');
 }
 function closeDetail() {
-    document.getElementById('detailPanel').classList.remove('open');
-    document.getElementById('detailOverlay').classList.remove('open');
+    const panel = document.getElementById('detailPanel');
+    const overlay = document.getElementById('detailOverlay');
+    if (panel) panel.classList.remove('open');
+    if (overlay) overlay.classList.remove('open');
+    setTimeout(() => {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('detail');
+        window.location.href = url.pathname + url.search;
+    }, 300);
 }
 <?php if (isset($_GET['tab'])): ?>
     switchTab('<?= htmlspecialchars($_GET['tab']) ?>');
@@ -1853,11 +1859,11 @@ function showResetForm(id, nama, semester, kelas, prodi) {
     document.getElementById('editMhsKelas').value = kelas;
     document.getElementById('editMhsProdi').value = prodi || 'D3 RMIK';
     const modal = document.getElementById('resetModal');
-    modal.style.display = 'flex';
+    modal.classList.add('show');
 }
 
 function closeResetModal() {
-    document.getElementById('resetModal').style.display = 'none';
+    document.getElementById('resetModal').classList.remove('show');
 }
 
 function showStaffForm(id, nama, npp, jabatan) {
@@ -1867,11 +1873,11 @@ function showStaffForm(id, nama, npp, jabatan) {
     document.getElementById('editStaffNpp').value = npp;
     document.getElementById('editStaffJabatan').value = jabatan;
     const modal = document.getElementById('staffModal');
-    modal.style.display = 'flex';
+    modal.classList.add('show');
 }
 
 function closeStaffModal() {
-    document.getElementById('staffModal').style.display = 'none';
+    document.getElementById('staffModal').classList.remove('show');
 }
 
 function autoSelectProdiTarget(selectEl) {
@@ -1890,26 +1896,28 @@ function updateSubmissionsList() {
 
     const cards = Array.from(container.querySelectorAll('.submission-card'));
     
-    // Get filter, search, and sort values
+    // Get filter, search, and prodi values
     const classFilterEl = document.getElementById('filterClassSub');
     const classFilter = classFilterEl ? classFilterEl.value : 'all';
     
+    const prodiFilterEl = document.getElementById('filterProdiSub');
+    const prodiFilter = prodiFilterEl ? prodiFilterEl.value : 'all';
+    
     const searchEl = document.getElementById('searchSubName');
     const searchQuery = searchEl ? searchEl.value.toLowerCase().trim() : '';
-    
-    const sortEl = document.getElementById('sortSub');
-    const sortBy = sortEl ? sortEl.value : 'time';
 
-    // 1. Filter and Search
+    // Filter and Search
     let visibleCount = 0;
     cards.forEach(card => {
         const cardClass = card.getAttribute('data-class') || '';
+        const cardProdi = card.getAttribute('data-prodi') || '';
         const cardName = card.getAttribute('data-name') || '';
         
         const matchClass = (classFilter === 'all' || cardClass === classFilter);
+        const matchProdi = (prodiFilter === 'all' || cardProdi === prodiFilter);
         const matchSearch = (searchQuery === '' || cardName.includes(searchQuery));
 
-        if (matchClass && matchSearch) {
+        if (matchClass && matchProdi && matchSearch) {
             card.style.display = '';
             visibleCount++;
         } else {
@@ -1922,30 +1930,6 @@ function updateSubmissionsList() {
     if (countText) {
         countText.textContent = visibleCount + ' Mahasiswa Mengumpulkan';
     }
-
-    // 2. Sort
-    cards.sort((a, b) => {
-        let valA, valB;
-        if (sortBy === 'class') {
-            valA = a.getAttribute('data-class') || '';
-            valB = b.getAttribute('data-class') || '';
-        } else if (sortBy === 'prodi') {
-            valA = a.getAttribute('data-prodi') || '';
-            valB = b.getAttribute('data-prodi') || '';
-        } else if (sortBy === 'name') {
-            valA = a.getAttribute('data-name') || '';
-            valB = b.getAttribute('data-name') || '';
-        } else { // 'time'
-            valA = a.getAttribute('data-time') || '';
-            valB = b.getAttribute('data-time') || '';
-        }
-
-        // Compare alphabetically or numerically
-        return valA.localeCompare(valB, 'id', { numeric: true, sensitivity: 'base' });
-    });
-
-    // Re-append sorted cards to the container
-    cards.forEach(card => container.appendChild(card));
 }
 
 function filterSubmissionsByClass(cls) {
@@ -1976,6 +1960,16 @@ function toggleClassOption(chk) {
 let originalMatkulOptions = [];
 
 document.addEventListener("DOMContentLoaded", function() {
+    // Animate detail panel opening
+    const panel = document.getElementById('detailPanel');
+    const overlay = document.getElementById('detailOverlay');
+    if (panel && panel.getAttribute('data-should-open') === 'true') {
+        setTimeout(() => {
+            panel.classList.add('open');
+            overlay.classList.add('open');
+        }, 50);
+    }
+
     const selectEl = document.getElementById('id_matkul');
     if (selectEl) {
         const optgroups = selectEl.querySelectorAll('optgroup');
