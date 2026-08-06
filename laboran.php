@@ -773,28 +773,53 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
             <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:.25rem;"><?= htmlspecialchars($detail_assignment['nama_semester']) ?></p>
             <p style="font-size:.82rem;color:var(--color-warning);">⏰ <?= format_tanggal($detail_assignment['deadline']) ?></p>
         </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:.5rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; flex-wrap:wrap; gap:.5rem;">
             <div style="font-size:.88rem;font-weight:600;color:var(--text-muted);" id="subCountText"><?= count($detail_submissions) ?> Mahasiswa Mengumpulkan</div>
-            <div style="display:flex; align-items:center; gap:.3rem;">
-                <label class="form-label" style="margin-bottom:0; font-size:.82rem; white-space:nowrap;">Kelas:</label>
-                <select class="form-input" id="filterClassSub" style="padding:.2rem .4rem; font-size:.8rem; width:110px; height:auto;" onchange="filterSubmissionsByClass(this.value)">
-                    <option value="all">Semua Kelas</option>
-                    <?php 
-                    $classes = array_unique(array_filter(array_column($detail_submissions, 'kelas')));
-                    sort($classes);
-                    foreach ($classes as $cls):
-                    ?>
-                        <option value="<?= htmlspecialchars($cls) ?>"><?= htmlspecialchars($cls) ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
         </div>
+
+        <?php if (!empty($detail_submissions)): ?>
+            <!-- Search bar -->
+            <div style="margin-bottom:0.75rem;">
+                <input type="text" id="searchSubName" class="form-input" placeholder="🔍 Cari nama mahasiswa..." style="padding:.45rem .75rem; font-size:.85rem; height:auto;" oninput="updateSubmissionsList()">
+            </div>
+
+            <!-- Filter & Sort controls -->
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; margin-bottom:1.25rem; flex-wrap:wrap;">
+                <!-- Class Filter -->
+                <div style="display:flex; align-items:center; gap:.3rem; flex:1; min-width:130px;">
+                    <label class="form-label" style="margin-bottom:0; font-size:.8rem; white-space:nowrap;">Kelas:</label>
+                    <select class="form-select" id="filterClassSub" style="padding:.3rem 1.75rem .3rem .5rem; font-size:.8rem; height:auto; background-position: right 0.5rem center;" onchange="updateSubmissionsList()">
+                        <option value="all">Semua Kelas</option>
+                        <?php 
+                        $classes = array_unique(array_filter(array_column($detail_submissions, 'kelas')));
+                        sort($classes);
+                        foreach ($classes as $cls):
+                        ?>
+                            <option value="<?= htmlspecialchars($cls) ?>"><?= htmlspecialchars($cls) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                
+                <!-- Sort Select -->
+                <div style="display:flex; align-items:center; gap:.3rem; flex:1; min-width:160px;">
+                    <label class="form-label" style="margin-bottom:0; font-size:.8rem; white-space:nowrap;">Urutkan:</label>
+                    <select class="form-select" id="sortSub" style="padding:.3rem 1.75rem .3rem .5rem; font-size:.8rem; height:auto; background-position: right 0.5rem center;" onchange="updateSubmissionsList()">
+                        <option value="time">Waktu Unggah ⏱</option>
+                        <option value="name">Nama Mahasiswa 👤</option>
+                        <option value="class">Kelas 🏫</option>
+                        <option value="prodi">Program Studi 🎓</option>
+                    </select>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <?php if (empty($detail_submissions)): ?>
             <div style="text-align:center;color:var(--text-muted);padding:3rem 0;">
                 <div style="font-size:2rem;margin-bottom:.5rem;">📭</div>
                 <p>Belum ada yang mengumpulkan</p>
             </div>
         <?php else: ?>
+            <div id="submissionsContainer">
             <?php foreach ($detail_submissions as $sub): 
                 $stmt_fb = $pdo->prepare("
                     SELECT sf.*, u.nama_lengkap as nama_laboran 
@@ -806,7 +831,12 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                 $stmt_fb->execute([$sub['id']]);
                 $feedback_logs = $stmt_fb->fetchAll();
             ?>
-            <div class="submission-card" data-class="<?= htmlspecialchars($sub['kelas'] ?? 'A') ?>" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; background: var(--bg-card);">
+            <div class="submission-card" 
+                 data-class="<?= htmlspecialchars($sub['kelas'] ?? 'A') ?>" 
+                 data-prodi="<?= htmlspecialchars($sub['prodi'] ?? 'D3 RMIK') ?>" 
+                 data-name="<?= htmlspecialchars(strtolower($sub['nama_lengkap'])) ?>" 
+                 data-time="<?= htmlspecialchars($sub['waktu_unggah']) ?>"
+                 style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; background: var(--bg-card);">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.75rem;">
                     <div>
                         <div style="font-weight:600; font-size:.95rem; color:var(--text-main);"><?= htmlspecialchars($sub['nama_lengkap']) ?> <span class="badge badge-info" style="font-size:.7rem; font-weight:normal; border-radius:4px; padding:.1rem .3rem; text-transform:none; margin-left:.25rem;"><?= htmlspecialchars($sub['prodi'] ?? 'D3 RMIK') ?> - Kelas <?= htmlspecialchars($sub['kelas'] ?? 'A') ?></span></div>
@@ -916,6 +946,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                 </details>
             </div>
             <?php endforeach; ?>
+            </div> <!-- #submissionsContainer -->
         <?php endif; ?>
     <?php endif; ?>
 </div>
@@ -1853,18 +1884,76 @@ function autoSelectProdiTarget(selectEl) {
     }
 }
 
-function filterSubmissionsByClass(cls) {
+function updateSubmissionsList() {
+    const container = document.getElementById('submissionsContainer');
+    if (!container) return;
+
+    const cards = Array.from(container.querySelectorAll('.submission-card'));
+    
+    // Get filter, search, and sort values
+    const classFilterEl = document.getElementById('filterClassSub');
+    const classFilter = classFilterEl ? classFilterEl.value : 'all';
+    
+    const searchEl = document.getElementById('searchSubName');
+    const searchQuery = searchEl ? searchEl.value.toLowerCase().trim() : '';
+    
+    const sortEl = document.getElementById('sortSub');
+    const sortBy = sortEl ? sortEl.value : 'time';
+
+    // 1. Filter and Search
     let visibleCount = 0;
-    document.querySelectorAll('.submission-card').forEach(card => {
-        const cardClass = card.getAttribute('data-class');
-        if (cls === 'all' || cardClass === cls) {
+    cards.forEach(card => {
+        const cardClass = card.getAttribute('data-class') || '';
+        const cardName = card.getAttribute('data-name') || '';
+        
+        const matchClass = (classFilter === 'all' || cardClass === classFilter);
+        const matchSearch = (searchQuery === '' || cardName.includes(searchQuery));
+
+        if (matchClass && matchSearch) {
             card.style.display = '';
             visibleCount++;
         } else {
             card.style.display = 'none';
         }
     });
-    document.getElementById('subCountText').textContent = visibleCount + ' Mahasiswa Mengumpulkan';
+
+    // Update the counter
+    const countText = document.getElementById('subCountText');
+    if (countText) {
+        countText.textContent = visibleCount + ' Mahasiswa Mengumpulkan';
+    }
+
+    // 2. Sort
+    cards.sort((a, b) => {
+        let valA, valB;
+        if (sortBy === 'class') {
+            valA = a.getAttribute('data-class') || '';
+            valB = b.getAttribute('data-class') || '';
+        } else if (sortBy === 'prodi') {
+            valA = a.getAttribute('data-prodi') || '';
+            valB = b.getAttribute('data-prodi') || '';
+        } else if (sortBy === 'name') {
+            valA = a.getAttribute('data-name') || '';
+            valB = b.getAttribute('data-name') || '';
+        } else { // 'time'
+            valA = a.getAttribute('data-time') || '';
+            valB = b.getAttribute('data-time') || '';
+        }
+
+        // Compare alphabetically or numerically
+        return valA.localeCompare(valB, 'id', { numeric: true, sensitivity: 'base' });
+    });
+
+    // Re-append sorted cards to the container
+    cards.forEach(card => container.appendChild(card));
+}
+
+function filterSubmissionsByClass(cls) {
+    const classFilterEl = document.getElementById('filterClassSub');
+    if (classFilterEl) {
+        classFilterEl.value = cls;
+    }
+    updateSubmissionsList();
 }
 
 function toggleAllKelas(chk) {
