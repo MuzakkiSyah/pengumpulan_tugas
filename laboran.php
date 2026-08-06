@@ -614,13 +614,15 @@ if (isset($_GET['download_template_matkul'])) {
 if (isset($_GET['export_excel_grades'])) {
     check_login('laboran');
     
-    $semester_id = isset($_GET['export_semester']) ? (int)$_GET['export_semester'] : 0;
+    $semester_tingkat = isset($_GET['export_semester']) ? (int)$_GET['export_semester'] : 0;
     $prodi = isset($_GET['export_prodi']) ? trim($_GET['export_prodi']) : '';
     $matkul_id = isset($_GET['export_matkul']) ? (int)$_GET['export_matkul'] : 0;
     
-    if (!$semester_id || !$prodi) {
-        die("Semester dan Program Studi harus dipilih.");
+    if (!$semester_tingkat || !$prodi) {
+        die("Semester Tingkat dan Program Studi harus dipilih.");
     }
+    
+    $active_semester_id = $pdo->query("SELECT id FROM semesters WHERE status = 'aktif' LIMIT 1")->fetchColumn() ?: 0;
     
     if ($matkul_id > 0) {
         // Query untuk satu mata kuliah saja
@@ -640,12 +642,12 @@ if (isset($_GET['export_excel_grades'])) {
         ");
         $stmt->execute([$matkul_id]);
     } else {
-        // Query untuk semua mata kuliah di semester & prodi tersebut
+        // Query untuk semua mata kuliah di semester tingkat & prodi tersebut pada semester akademik aktif
         $stmt = $pdo->prepare("
             SELECT u.nomor_induk AS nim, u.nama_lengkap AS nama_mahasiswa, u.kelas AS kelas_mahasiswa, 
                    mk.nama_matkul, a.judul AS nama_tugas, sub.nilai
             FROM users u
-            JOIN mata_kuliah mk ON mk.id_semester = ? AND mk.prodi = ?
+            JOIN mata_kuliah mk ON mk.id_semester = ? AND mk.prodi = ? AND mk.semester = ?
             JOIN assignments a ON a.id_matkul = mk.id 
                 AND (a.prodi = 'all' OR a.prodi = u.prodi)
                 AND (a.kelas = 'all' OR a.kelas = u.kelas)
@@ -655,18 +657,19 @@ if (isset($_GET['export_excel_grades'])) {
               AND u.semester = mk.semester
             ORDER BY mk.nama_matkul ASC, u.kelas ASC, u.nomor_induk ASC, a.created_at ASC
         ");
-        $stmt->execute([$semester_id, $prodi]);
+        $stmt->execute([$active_semester_id, $prodi, $semester_tingkat]);
     }
     
     $rows = $stmt->fetchAll();
     
     $stmt_sem = $pdo->prepare("SELECT nama_semester FROM semesters WHERE id = ?");
-    $stmt_sem->execute([$semester_id]);
-    $sem_name = $stmt_sem->fetchColumn() ?: "Semester";
+    $stmt_sem->execute([$active_semester_id]);
+    $sem_name = $stmt_sem->fetchColumn() ?: "Semester Aktif";
     
     $excel_data = [
         ['REKAP NILAI MAHASISWA'],
-        ['Semester:', $sem_name],
+        ['Semester Akademik:', $sem_name],
+        ['Semester Tingkat:', 'Semester ' . $semester_tingkat],
         ['Program Studi:', $prodi],
         [],
         ['NIM', 'Nama Mahasiswa', 'Kelas', 'Mata Kuliah', 'Nama Tugas', 'Nilai']
@@ -684,7 +687,7 @@ if (isset($_GET['export_excel_grades'])) {
         ];
     }
     
-    $filename = 'rekap_nilai_' . strtolower(str_replace(' ', '_', $prodi)) . '_' . date('Ymd_His') . '.xlsx';
+    $filename = 'rekap_nilai_semester_' . $semester_tingkat . '_' . strtolower(str_replace(' ', '_', $prodi)) . '_' . date('Ymd_His') . '.xlsx';
     \Shuchkin\SimpleXLSXGen::fromArray($excel_data)->downloadAs($filename);
     exit();
 }
@@ -1888,13 +1891,14 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                 
                 <div class="form-row-3" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom:1.5rem;">
                     <div class="form-group">
-                        <label class="form-label">Pilih Semester</label>
+                        <label class="form-label">Pilih Semester Tingkat</label>
                         <select name="export_semester" id="export_semester" class="form-select" required onchange="filterMatkulExport()">
-                            <?php foreach ($semesters as $sem): ?>
-                                <option value="<?= $sem['id'] ?>" <?= $sem['status'] === 'aktif' ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($sem['nama_semester']) ?>
-                                </option>
-                            <?php endforeach; ?>
+                            <option value="1" selected>Semester 1</option>
+                            <option value="2">Semester 2</option>
+                            <option value="3">Semester 3</option>
+                            <option value="4">Semester 4</option>
+                            <option value="5">Semester 5</option>
+                            <option value="6">Semester 6</option>
                         </select>
                     </div>
                     
@@ -1911,10 +1915,10 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                         <select name="export_matkul" id="export_matkul" class="form-select">
                             <option value="0" data-semester="all" data-prodi="all">-- Semua Mata Kuliah --</option>
                             <?php
-                            $all_mk = $pdo->query("SELECT id, nama_matkul, id_semester, prodi FROM mata_kuliah ORDER BY nama_matkul ASC")->fetchAll();
+                            $all_mk = $pdo->query("SELECT id, nama_matkul, semester, prodi FROM mata_kuliah ORDER BY nama_matkul ASC")->fetchAll();
                             foreach ($all_mk as $mk):
                             ?>
-                                <option value="<?= $mk['id'] ?>" data-semester="<?= $mk['id_semester'] ?>" data-prodi="<?= htmlspecialchars($mk['prodi']) ?>">
+                                <option value="<?= $mk['id'] ?>" data-semester="<?= $mk['semester'] ?>" data-prodi="<?= htmlspecialchars($mk['prodi']) ?>">
                                     <?= htmlspecialchars($mk['nama_matkul']) ?>
                                 </option>
                             <?php endforeach; ?>
