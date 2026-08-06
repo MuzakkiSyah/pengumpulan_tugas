@@ -809,6 +809,24 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
         .assignment-title { font-weight:600; font-size:.98rem; margin-bottom:.3rem; color:var(--text-main); }
         .assignment-meta { display:flex; gap:1rem; flex-wrap:wrap; font-size:.8rem; color:var(--text-muted); align-items:center; }
         .action-btns { display:flex; gap:.4rem; }
+        
+        .preview-modal-content {
+            background: #ffffff;
+            border: 1.5px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            width: 95%;
+            max-width: 1000px;
+            height: 85vh;
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            flex-direction: column;
+            transform: scale(0.9);
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .modal-container.show .preview-modal-content {
+            transform: scale(1);
+        }
     </style>
 
 </head>
@@ -944,7 +962,7 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
                     <!-- Action Buttons -->
                     <div style="display:flex; gap:0.3rem;">
                         <!-- View Button -->
-                        <a href="view_submission.php?id=<?= $sub['id'] ?>" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none; font-size:.78rem; padding: 0.35rem 0.65rem; display:inline-flex; align-items:center; gap:0.2rem; border-radius:6px;">👁️ Lihat</a>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="openPreviewModal('view_submission.php?id=<?= $sub['id'] ?>', '<?= htmlspecialchars(addslashes($sub['nama_file'])) ?>')" style="font-size:.78rem; padding: 0.35rem 0.65rem; display:inline-flex; align-items:center; gap:0.2rem; border-radius:6px;">👁️ Lihat</button>
                         <!-- Download Button -->
                         <a href="download.php?sub_id=<?= $sub['id'] ?>" class="btn btn-secondary btn-sm" style="text-decoration:none; font-size:.78rem; padding: 0.35rem 0.65rem; display:inline-flex; align-items:center; gap:0.2rem; border-radius:6px;">⬇ Unduh</a>
                     </div>
@@ -1933,6 +1951,17 @@ $total_submissions= $pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn
 
 </div>
 
+    <!-- Modal Preview File (hidden by default) -->
+    <div id="previewFileModal" class="modal-container">
+        <div class="preview-modal-content">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                <h4 id="previewFileTitle" style="margin:0; font-size:1.1rem; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">👁️ Preview File</h4>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="closePreviewModal()">✕ Tutup</button>
+            </div>
+            <iframe id="previewFileFrame" src="" style="width:100%; flex:1; border:1px solid var(--border-color); border-radius:8px; background:#f8f9fa;"></iframe>
+        </div>
+    </div>
+
 <footer><p>Sistem Informasi Pengumpulan Tugas Lab RM &copy; 2026</p></footer>
 
 <script>
@@ -2321,6 +2350,16 @@ function filterMatkulExport() {
 document.addEventListener("DOMContentLoaded", function() {
     filterMatkulExport();
 });
+function openPreviewModal(url, filename) {
+    document.getElementById('previewFileTitle').textContent = '👁️ Preview: ' + filename;
+    document.getElementById('previewFileFrame').src = url;
+    document.getElementById('previewFileModal').classList.add('show');
+}
+
+function closePreviewModal() {
+    document.getElementById('previewFileModal').classList.remove('show');
+    document.getElementById('previewFileFrame').src = '';
+}
 </script>
 
 </body>
