@@ -178,7 +178,7 @@ foreach ($all_assignments as $a) { if ($a['sub_id']) $total_kumpul++; }
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Mahasiswa - Sistem Informasi Pengumpulan Tugas Lab RM</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=<?= filemtime(__DIR__ . '/style.css') ?>">
     <style>
         .stats-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; margin-bottom:2rem; }
         @media(max-width:600px) { .stats-grid { grid-template-columns:1fr; } }
